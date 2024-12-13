@@ -30,9 +30,7 @@ function findStructureToRepair(tower) {
 
     if (!structureToRepair) {
         structureToRepair = tower.room.find(FIND_STRUCTURES, {
-            filter: structure =>
-                (structure.structureType == STRUCTURE_WALL && structure.hits <= 150000)
-                || (structure.structureType == STRUCTURE_RAMPART && structure.hits <= 140000)
+            filter: structure => structure.hits < structure.hitsMax
         }).reduce((min, structure) => {
             if (min == null) { return structure }
             return structure.hits < min.hits ? structure : min;

@@ -17,14 +17,20 @@ function creepsWork(creep) {
         case 'harvester':
             roleBase.harvester.work(creep);
             break;
-        case 'carryer':
-            roleBase.carryer.work(creep);
+        case 'filler':
+            roleBase.filler.work(creep);
             break;
         case 'upgrader':
             roleBase.upgrader.work(creep);
             break;
         case 'builder':
             roleBase.builder.work(creep);
+            break;
+        case 'repairer':
+            roleBase.repairer.work(creep);
+            break;
+        case 'manager':
+            roleBase.manager.work(creep);
             break;
     }
 }
@@ -39,9 +45,6 @@ function releaseCreepConfig(room) {
 
     // 挖矿
     room.find(FIND_SOURCES).forEach(source => {
-        if (source.id == '14b2b5b278f241d8c1ea75e2') {
-            return;
-        }
         var canHarvesterPos = roomUtils.getCanHarvesterPos(source.pos);
         canHarvesterPos = Math.min(canHarvesterPos, 2);
         for (i = 0; i < canHarvesterPos; i++) {
@@ -53,23 +56,56 @@ function releaseCreepConfig(room) {
         }
     });
 
-    // 如果有Storage，发布一个专属Carryer
+    // 如果有Storage，发布一个专属Filler，并且每5w多一个upgrader
     var storages = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_STORAGE });
     if (storages && storages.length > 0) {
-        const carryerStorageConfigName = room.name + '_CarryerContainer_' + storages[0].id;
-        Memory.creepConfig[carryerStorageConfigName] = {
-            role: 'carryer',
+        const fillerStorageConfigName = room.name + '_FillerStorage_' + storages[0].id;
+        Memory.creepConfig[fillerStorageConfigName] = {
+            role: 'filler',
             sourceTarget: storages[0].id,
+        };
+
+        var workCount = parseInt(storages[0].store[RESOURCE_ENERGY] / 100000);
+        workCount += 1;
+
+        if (room.controller.level == 8) {
+            workCount = 1;
+        }
+        for (i = 0; i < workCount; i++) {
+            const upgraderConfigName = room.name + '_UpgraderStorage_' + storages[0].id + '_' + i;
+            Memory.creepConfig[upgraderConfigName] = {
+                role: 'upgrader',
+                sourceTarget: storages[0].id,
+            };
+
+            const builderConfigName = room.name + '_BuilderStorage_' + storages[0].id + '_' + i;
+            Memory.creepConfig[builderConfigName] = {
+                role: 'builder',
+                sourceTarget: storages[0].id,
+            };
+
+            const repairerConfigName = room.name + '_RepairerStorage_' + storages[0].id + '_' + i;
+            Memory.creepConfig[repairerConfigName] = {
+                role: 'repairer',
+                sourceTarget: storages[0].id,
+            };
+        }
+    }
+
+    if (room.memory.centerLink) {
+        const managerConfigName = room.name + '_Manager';
+        Memory.creepConfig[managerConfigName] = {
+            role: 'manager'
         };
     }
 
-    // 初期 Container，每个 Container 发布 Builder*1，Carryer*1，Upgrader*1，repairer*1
+    // 初期 Container，每个 Container 发布 Builder*1，Filler*1，Upgrader*1，repairer*1
     // 如果有 Storage，Builder，Upgrader，repairer 只会绑定 Storage
     room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_CONTAINER })
         .forEach(structure => {
-            const carryerConfigName = room.name + '_CarryerContainer_' + structure.id;
-            Memory.creepConfig[carryerConfigName] = {
-                role: 'carryer',
+            const fillerConfigName = room.name + '_FillerContainer_' + structure.id;
+            Memory.creepConfig[fillerConfigName] = {
+                role: 'filler',
                 sourceTarget: structure.id,
             };
 
@@ -99,6 +135,19 @@ function releaseCreepConfig(room) {
  * @param {*} room 
  */
 function autoSpawnCreeps(room) {
+    const harvester = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'harvester');
+    const fillers = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'filler');
+
+    if (harvester.length > 0 && fillers.length == 0) {
+        var fillerSpawn = Object.entries(Memory.creepConfig).filter(
+            ([configName, config]) => config.role == 'filler' && !Game.creeps[configName])
+
+        if (fillerSpawn && fillerSpawn.length > 0) {
+            roleBase.filler.spawn(room, fillerSpawn[0][0], fillerSpawn[0][1]);
+            return;
+        }
+    }
+
     var harvesterSpawn = Object.entries(Memory.creepConfig).filter(
         ([configName, config]) => config.role == 'harvester' && !Game.creeps[configName])
 
@@ -107,11 +156,19 @@ function autoSpawnCreeps(room) {
         return;
     }
 
-    var carryerSpawn = Object.entries(Memory.creepConfig).filter(
-        ([configName, config]) => config.role == 'carryer' && !Game.creeps[configName])
+    var fillerSpawn = Object.entries(Memory.creepConfig).filter(
+        ([configName, config]) => config.role == 'filler' && !Game.creeps[configName])
 
-    if (carryerSpawn && carryerSpawn.length > 0) {
-        roleBase.carryer.spawn(room, carryerSpawn[0][0], carryerSpawn[0][1]);
+    if (fillerSpawn && fillerSpawn.length > 0) {
+        roleBase.filler.spawn(room, fillerSpawn[0][0], fillerSpawn[0][1]);
+        return;
+    }
+
+    var managerSpawn = Object.entries(Memory.creepConfig).filter(
+        ([configName, config]) => config.role == 'manager' && !Game.creeps[configName])
+
+    if (managerSpawn && managerSpawn.length > 0) {
+        roleBase.manager.spawn(room, managerSpawn[0][0], managerSpawn[0][1]);
         return;
     }
 
@@ -130,10 +187,18 @@ function autoSpawnCreeps(room) {
         roleBase.upgrader.spawn(room, upgraderSpawn[0][0], upgraderSpawn[0][1]);
         return;
     }
+
+    var repairerSpawn = Object.entries(Memory.creepConfig).filter(
+        ([configName, config]) => config.role == 'repairer' && !Game.creeps[configName])
+
+    if (repairerSpawn && repairerSpawn.length > 0) {
+        roleBase.repairer.spawn(room, repairerSpawn[0][0], repairerSpawn[0][1]);
+        return;
+    }
 }
 
 function showCount(room) {
-    let roleCounts = { 'harvester': 0, 'carryer': 0, 'builder': 0, 'upgrader': 0 };
+    let roleCounts = { 'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0 };
     for (let creepName in Game.creeps) {
         let creep = Game.creeps[creepName];
         let role = creep.memory.role;
@@ -146,11 +211,27 @@ function showCount(room) {
         }
     }
 
-    var index = 1;
-    for (role in roleCounts) {
-        room.visual.text(role, 0, index, { align: 'left' });
-        room.visual.text(roleCounts[role], 4, index, { align: 'left' });
-        index++;
+    let roleMaxCounts = { 'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0 };
+    for (let creepName in Memory.creepConfig) {
+        let creep = Memory.creepConfig[creepName];
+        let role = creep.role;
+
+        if (role) {
+            if (!roleMaxCounts[role]) {
+                roleMaxCounts[role] = 0;
+            }
+            roleMaxCounts[role]++;
+        }
+    }
+
+    const roomCenter = room.memory.roomCenter;
+    if (roomCenter) {
+        var index = roomCenter.y - 2;
+        for (role in roleCounts) {
+            room.visual.text(role, roomCenter.x + 8, index, { align: 'left' });
+            room.visual.text(roleCounts[role] + '/' + roleMaxCounts[role], roomCenter.x + 12, index, { align: 'center' });
+            index++;
+        }
     }
 }
 

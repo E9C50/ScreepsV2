@@ -1,6 +1,5 @@
 const roomUtils = require("utils.room");
 const creepsUtils = require("utils.creeps");
-const { filter } = require("lodash");
 
 function genbodyHarvester(maxEnergy, totalEnergy, forceSpawn) {
     var energy = forceSpawn ? totalEnergy : maxEnergy;
@@ -27,7 +26,7 @@ function genbodyHarvester(maxEnergy, totalEnergy, forceSpawn) {
     return bodyParts;
 }
 
-function genbodyCarryer(maxEnergy, totalEnergy, forceSpawn) {
+function genbodyFiller(maxEnergy, totalEnergy, forceSpawn) {
     var energy = forceSpawn ? totalEnergy : maxEnergy;
     energy = Math.max(300, energy);
     energy -= energy % 50;
@@ -37,6 +36,8 @@ function genbodyCarryer(maxEnergy, totalEnergy, forceSpawn) {
     if (totalPartCount % 2 == 1) {
         totalPartCount -= 1;
     }
+
+    totalPartCount = Math.min(totalPartCount, 50)
 
     var singlePartCount = totalPartCount / 2;
 
@@ -82,11 +83,11 @@ var roleBase = {
             const totalEnergy = roomUtils.getTotalEnergy(room);
 
             const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
-            const carryerList = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'carryer');
+            const fillerList = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'filler');
 
-            const bodyPart = genbodyHarvester(maxEnergy, totalEnergy, carryerList.length == 0);
+            const bodyPart = genbodyHarvester(maxEnergy, totalEnergy, fillerList.length == 0);
             creepMemory.working = false;
-            spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
+            if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         work: function (creep) {
             const target = creep.pos.findClosestByRange(FIND_SOURCES, {
@@ -116,27 +117,48 @@ var roleBase = {
             const target = creep.pos.findClosestByRange(FIND_SOURCES, {
                 filter: source => source.id == creep.memory.sourceTarget
             });
-            creep.moveTo(target, { visualizePathStyle: { stroke: '#ffaa00' } });
+            creep.registerMove(target.pos);
         },
         source: function (creep) {
             const target = creep.pos.findClosestByRange(FIND_SOURCES, {
                 filter: source => source.id == creep.memory.sourceTarget
             });
-            creep.harvest(target);
+            if (creep.harvest(target) != OK) {
+                creep.say('💤');
+            }
         },
         target: function (creep) {
-            const links = creep.pos.findInRange(FIND_STRUCTURES, 5, {
+            const links = creep.pos.findInRange(FIND_STRUCTURES, 3, {
                 filter: structure => structure.structureType == STRUCTURE_LINK
+            });
+
+            const storages = creep.room.find(FIND_STRUCTURES, {
+                filter: structure => structure.structureType == STRUCTURE_STORAGE
             });
 
             const containers = creep.pos.findInRange(FIND_STRUCTURES, 3, {
                 filter: structure => structure.structureType == STRUCTURE_CONTAINER
             });
 
-            const constructionSite = creep.pos.findInRange(LOOK_CONSTRUCTION_SITES, 3)
-                .filter(structure => structure.structureType == STRUCTURE_CONTAINER)[0];
+            const constructionSite = creep.pos.findInRange(FIND_CONSTRUCTION_SITES, 3)[0];
 
-            if (!containers[0] && !constructionSite && containers.length < 1 && links.length == 0) {
+            // 在旁边构建Links
+            if (!constructionSite && links.length == 0) {
+                const source = Game.getObjectById(creep.memory.sourceTarget);
+
+                const dx = source.pos.x - creep.pos.x
+                const dy = source.pos.y - creep.pos.y
+
+                const linkX = creep.pos.x - dx;
+                const linkY = creep.pos.y - dy;
+
+                const linkPost = new RoomPosition(linkX, linkY, creep.room.name);
+                linkPost.createConstructionSite(STRUCTURE_LINK);
+            }
+
+            // 在旁边构建Containers
+            const maxContainers = storages.length > 0 ? 1 : 1;
+            if (!constructionSite && containers.length < maxContainers && links.length == 0) {
                 creep.pos.createConstructionSite(STRUCTURE_CONTAINER);
             }
 
@@ -145,16 +167,18 @@ var roleBase = {
                 return;
             }
 
-            var target = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: structure => structure.structureType == STRUCTURE_LINK &&
-                    structure.store.getFreeCapacity() > 0
-            });
+            var target = creep.pos.findInRange(FIND_STRUCTURES, 3)
+                .filter(structure => structure.structureType == STRUCTURE_LINK &&
+                    structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0);
+            target = target.sort((a, b) => a.pos.getRangeTo(creep) - b.pos.getRangeTo(creep))[0];
 
             if (!target) {
-                target = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                    filter: structure => structure.structureType == STRUCTURE_CONTAINER
-                        && structure.store.getFreeCapacity() > 0
-                });
+                var containersInRange = creep.pos.findInRange(FIND_STRUCTURES, 3)
+                    .filter(structure => structure.structureType == STRUCTURE_CONTAINER
+                        && structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0);
+                containersInRange.sort((a, b) => a.pos.getRangeTo(creep) - b.pos.getRangeTo(creep));
+
+                target = containersInRange;
             }
 
             if (!target) {
@@ -166,19 +190,71 @@ var roleBase = {
                 return;
             }
 
-            creep.transfer(target, RESOURCE_ENERGY);
+            const result = creep.transfer(target, RESOURCE_ENERGY);
+            if (result == ERR_NOT_IN_RANGE) {
+                creep.registerMove(target.pos);
+            } else if (result != OK) {
+                creep.say('💤');
+            }
         }
     },
-    carryer: {
+    manager: {
         spawn: function (room, creepName, creepMemory) {
             const maxEnergy = roomUtils.getMaxEnergy(room);
             const totalEnergy = roomUtils.getTotalEnergy(room);
 
             const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
 
-            const bodyPart = genbodyCarryer(maxEnergy, totalEnergy, true);
+            const bodyPart = genbodyFiller(maxEnergy, totalEnergy, true);
             creepMemory.working = false;
-            spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
+            if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
+        },
+        isNeed: function (room) {
+            return room.memory.centerLink != null;
+        },
+        work: function (creep) {
+            const centerLink = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+                filter: structure => structure.id == creep.room.memory.centerLink
+            });
+            const roomCenter = creep.room.memory.roomCenter;
+            if (!creep.pos.isEqualTo(roomCenter.x, roomCenter.y)) {
+                creep.registerMove(new RoomPosition(roomCenter.x, roomCenter.y, roomCenter.roomName));
+                return;
+            }
+
+            const storage = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+                filter: structure => structure.structureType == STRUCTURE_STORAGE
+            });
+            const controllerLink = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+                filter: structure => structure.id == creep.room.memory.controllerLink
+            });
+
+            if (creep.room.memory.centerLinkSentMode) {
+                if (creep.store[RESOURCE_ENERGY] > 0) {
+                    creep.transfer(centerLink, RESOURCE_ENERGY);
+                } else {
+                    creep.withdraw(storage, RESOURCE_ENERGY);
+                }
+            } else {
+                if (creep.store[RESOURCE_ENERGY] > 0) {
+                    creep.transfer(storage, RESOURCE_ENERGY);
+                } else {
+                    creep.withdraw(centerLink, RESOURCE_ENERGY);
+                }
+            }
+
+        }
+    },
+    filler: {
+        spawn: function (room, creepName, creepMemory) {
+            const maxEnergy = roomUtils.getMaxEnergy(room);
+            const totalEnergy = roomUtils.getTotalEnergy(room);
+
+            const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
+
+            const bodyPart = genbodyFiller(maxEnergy, totalEnergy, true);
+            creepMemory.working = false;
+            if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         work: function (creep) {
             // 调整工作模式
@@ -196,7 +272,7 @@ var roleBase = {
             }
         },
         source: function (creep) {
-            if (creepsUtils.pickupDroppedResource(creep)) {
+            if (creepsUtils.pickupDroppedResource(creep, true)) {
                 return;
             }
 
@@ -207,17 +283,12 @@ var roleBase = {
 
             const withdrawResult = creep.withdraw(target, RESOURCE_ENERGY);
             if (withdrawResult == ERR_NOT_IN_RANGE) {
-                creep.moveTo(target, { maxRooms: 1, visualizePathStyle: { stroke: '#ffaa00' } });
-            }
-            if (withdrawResult == ERR_NOT_ENOUGH_RESOURCES) {
-                const backTarget = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                    filter: (structure) => structure.structureType == STRUCTURE_SPAWN
-                });
-                creep.moveTo(backTarget, { maxRooms: 1, visualizePathStyle: { stroke: '#ffffff' } });
+                creep.registerMove(target.pos);
+            } else if (withdrawResult != OK) {
+                creep.say('💤');
             }
         },
         target: function (creep) {
-
             // 优先往Storage搬
             var structures = creep.pos.findClosestByRange(FIND_STRUCTURES, {
                 filter: (structure) => {
@@ -225,6 +296,15 @@ var roleBase = {
                         && structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
                 }
             });
+
+            const resourceList = Object.keys(creep.store).filter(resource => resource != RESOURCE_ENERGY);
+            if (structures && resourceList && resourceList.length > 0) {
+                for (resource in resourceList) {
+                    if (creep.transfer(structures, resource) == ERR_NOT_IN_RANGE) {
+                        creep.registerMove(structures.pos);
+                    }
+                }
+            }
 
             if (structures && creep.memory.sourceTarget == structures.id) {
                 structures = null;
@@ -254,13 +334,14 @@ var roleBase = {
             // 转移资源
             if (structures) {
                 if (creep.transfer(structures, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-                    creep.moveTo(structures, { maxRooms: 1, visualizePathStyle: { stroke: '#ffffff' } });
+                    creep.registerMove(structures.pos);
                 }
             } else {
+                creep.say('💤');
                 structures = creep.pos.findClosestByRange(FIND_STRUCTURES, {
                     filter: (structure) => structure.structureType == STRUCTURE_EXTENSION
                 });
-                creep.moveTo(structures, { maxRooms: 1, visualizePathStyle: { stroke: '#ffffff' } });
+                creep.registerMove(structures.pos);
             }
         }
     },
@@ -273,7 +354,7 @@ var roleBase = {
 
             const bodyPart = genbodyWorker(maxEnergy, totalEnergy, false);
             creepMemory.working = false;
-            spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
+            if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         isNeed: function (room) {
             var constructionSiteCount = room.find(FIND_CONSTRUCTION_SITES).length;
@@ -296,7 +377,7 @@ var roleBase = {
             }
         },
         source: function (creep) {
-            if (creepsUtils.pickupDroppedResource(creep)) {
+            if (creepsUtils.pickupDroppedResource(creep, false)) {
                 return;
             }
 
@@ -307,13 +388,13 @@ var roleBase = {
 
             const withdrawResult = creep.withdraw(target, RESOURCE_ENERGY);
             if (withdrawResult == ERR_NOT_IN_RANGE) {
-                creep.moveTo(target, { maxRooms: 1, visualizePathStyle: { stroke: '#ffaa00' } });
+                creep.registerMove(target.pos);
             }
             if (withdrawResult == ERR_NOT_ENOUGH_RESOURCES) {
                 const backTarget = creep.pos.findClosestByRange(FIND_STRUCTURES, {
                     filter: (structure) => structure.structureType == STRUCTURE_SPAWN
                 });
-                creep.moveTo(backTarget, { maxRooms: 1, visualizePathStyle: { stroke: '#ffffff' } });
+                creep.registerMove(backTarget.pos);
             }
         },
         target: function (creep) {
@@ -336,28 +417,14 @@ var roleBase = {
                 buildTarget = creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES);
             }
 
-            // 获取需要修复的血量最低的建筑
-            var repairTarget = creep.room.find(FIND_STRUCTURES, {
-                filter: structure => (structure.structureType == STRUCTURE_WALL && structure.hits <= 100000)
-                    || (structure.structureType == STRUCTURE_RAMPART && structure.hits <= 100000)
-            }).reduce((min, structure) => {
-                if (min == null) { return structure }
-                return structure.hits < min.hits ? structure : min;
-            }, null);
-
             if (buildTarget) {
-                // 优先建造
                 if (creep.build(buildTarget) == ERR_NOT_IN_RANGE) {
-                    creep.moveTo(buildTarget, { maxRooms: 1, visualizePathStyle: { stroke: '#ffffff' } });
+                    creep.registerMove(buildTarget.pos);
                 }
             } else {
-                // 其次修复
-                if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) {
-                    creep.moveTo(repairTarget, { maxRooms: 1, visualizePathStyle: { stroke: '#ffffff' } });
-                }
+                roleBase.upgrader.work(creep);
+                // creep.memory.role = 'upgrader';
             }
-
-
         }
     },
     upgrader: {
@@ -369,11 +436,16 @@ var roleBase = {
 
             const bodyPart = genbodyWorker(maxEnergy, totalEnergy, false);
             creepMemory.working = false;
-            spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
+            if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         isNeed: function (room) {
-            var storages = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_STORAGE });
-            return storages && storages.length > 0 && storages[0].store[RESOURCE_ENERGY] > 50000;
+            // var storages = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_STORAGE });
+            // if (!storages || storages.length == 0) {
+            //     return true
+            // } else {
+            //     return storages[0].store[RESOURCE_ENERGY] > 50000;
+            // }
+            return true;
         },
         work: function (creep) {
             // 调整工作模式
@@ -391,7 +463,7 @@ var roleBase = {
             }
         },
         source: function (creep) {
-            if (creepsUtils.pickupDroppedResource(creep)) {
+            if (creepsUtils.pickupDroppedResource(creep, false)) {
                 return;
             }
 
@@ -402,18 +474,18 @@ var roleBase = {
 
             const withdrawResult = creep.withdraw(target, RESOURCE_ENERGY);
             if (withdrawResult == ERR_NOT_IN_RANGE) {
-                creep.moveTo(target, { maxRooms: 1, visualizePathStyle: { stroke: '#ffaa00' } });
+                creep.registerMove(target.pos);
             }
             if (withdrawResult == ERR_NOT_ENOUGH_RESOURCES) {
                 const backTarget = creep.pos.findClosestByRange(FIND_STRUCTURES, {
                     filter: (structure) => structure.structureType == STRUCTURE_SPAWN
                 });
-                creep.moveTo(backTarget, { maxRooms: 1, visualizePathStyle: { stroke: '#ffffff' } });
+                creep.registerMove(backTargets.pos);
             }
         },
         target: function (creep) {
             if (creep.upgradeController(creep.room.controller) == ERR_NOT_IN_RANGE) {
-                creep.moveTo(creep.room.controller, { maxRooms: 1, visualizePathStyle: { stroke: '#ffffff' } });
+                creep.registerMove(creep.room.controller.pos);
             }
         }
     },
@@ -426,7 +498,7 @@ var roleBase = {
 
             const bodyPart = genbodyWorker(maxEnergy, totalEnergy, false);
             creepMemory.working = false;
-            spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
+            if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         work: function (creep) {
             // 调整工作模式
@@ -444,7 +516,7 @@ var roleBase = {
             }
         },
         source: function (creep) {
-            if (creepsUtils.pickupDroppedResource(creep)) {
+            if (creepsUtils.pickupDroppedResource(creep, false)) {
                 return;
             }
 
@@ -455,17 +527,43 @@ var roleBase = {
 
             const withdrawResult = creep.withdraw(target, RESOURCE_ENERGY);
             if (withdrawResult == ERR_NOT_IN_RANGE) {
-                creep.moveTo(target, { maxRooms: 1, visualizePathStyle: { stroke: '#ffaa00' } });
+                creep.registerMove(target.pos);
             }
             if (withdrawResult == ERR_NOT_ENOUGH_RESOURCES) {
                 const backTarget = creep.pos.findClosestByRange(FIND_STRUCTURES, {
                     filter: (structure) => structure.structureType == STRUCTURE_SPAWN
                 });
-                creep.moveTo(backTarget, { maxRooms: 1, visualizePathStyle: { stroke: '#ffffff' } });
+                creep.registerMove(backTarget.pos);
             }
         },
         target: function (creep) {
+            var repairTarget = creep.room.find(FIND_STRUCTURES, {
+                filter: structure => structure.structureType != STRUCTURE_WALL
+                    && structure.structureType != STRUCTURE_RAMPART
+                    && structure.hits < structure.hitsMax
+            }).reduce((min, structure) => {
+                if (min == null) { return structure }
+                return structure.hits < min.hits ? structure : min;
+            }, null);
 
+            if (!repairTarget) {
+                repairTarget = creep.room.find(FIND_STRUCTURES, {
+                    filter: structure => (structure.structureType == STRUCTURE_WALL && structure.hits <= 10000000)
+                        || (structure.structureType == STRUCTURE_RAMPART && structure.hits <= 10000000)
+                }).reduce((min, structure) => {
+                    if (min == null) { return structure }
+                    return structure.hits < min.hits ? structure : min;
+                }, null);
+            }
+
+            if (repairTarget) {
+                if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) {
+                    creep.registerMove(repairTarget.pos);
+                }
+            } else {
+                roleBase.upgrader.work(creep);
+                // creep.memory.role = 'upgrader';
+            }
         }
     }
 };

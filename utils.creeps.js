@@ -15,7 +15,7 @@ var creepsUtils = {
 
         if (droppedEnergy.length > 0) {
             if (creep.pickup(droppedEnergy[0]) == ERR_NOT_IN_RANGE) {
-                creep.moveTo(droppedEnergy[0], { maxRooms: 1 });
+                creep.registerMove(droppedEnergy[0].pos);
             }
             return true;
         }
@@ -39,7 +39,7 @@ var creepsUtils = {
                     continue;
                 }
                 if (creep.withdraw(destroyed[0], resource) == ERR_NOT_IN_RANGE) {
-                    creep.moveTo(destroyed[0], { maxRooms: 1 });
+                    creep.registerMove(destroyed[0].pos);
                 }
             }
             return true;
