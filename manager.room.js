@@ -97,7 +97,7 @@ function releaseConstructionSite(room) {
     // Controller旁边发布Link
 
     // Mineral旁边发布Link
-    if (room.controller.level >= 7) {
+    if (room.controller.level >= 6) {
         const mineralPos = room.find(FIND_MINERALS)[0].pos;
         mineralPos.createConstructionSite(STRUCTURE_EXTRACTOR);
     }
@@ -125,8 +125,11 @@ var roomManager = {
                     || structure.structureType == STRUCTURE_TOWER
                     || structure.structureType == STRUCTURE_STORAGE
             }).forEach(structure => {
-                const sourcePercent = (structure.store.getUsedCapacity(RESOURCE_ENERGY) / structure.store.getCapacity(RESOURCE_ENERGY) * 100).toFixed(2);
-                room.visual.text(sourcePercent + ' %' + '', structure.pos.x, structure.pos.y + 2, { align: 'center' });
+                var showText = (structure.store.getUsedCapacity(RESOURCE_ENERGY) / structure.store.getCapacity(RESOURCE_ENERGY) * 100).toFixed(2) + ' %';
+                if (structure.structureType == STRUCTURE_STORAGE) {
+                    showText = structure.store.getUsedCapacity(RESOURCE_ENERGY);
+                }
+                room.visual.text(showText, structure.pos.x, structure.pos.y + 2, { align: 'center' });
             })
         }
     }

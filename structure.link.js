@@ -2,6 +2,7 @@ var linkManager = {
     run: function () {
         for (roomName in Game.rooms) {
             const room = Game.rooms[roomName]
+
             const links = room.find(FIND_STRUCTURES, {
                 filter: structure => structure.structureType === STRUCTURE_LINK
             });
@@ -27,7 +28,22 @@ var linkManager = {
             }
 
             if (controllerLink) {
+
+                const storage = centerLink.pos.findClosestByRange(FIND_STRUCTURES, {
+                    filter: structure => structure.structureType == STRUCTURE_STORAGE
+                });
+
                 room.memory.controllerLink = controllerLink.id;
+                if (controllerLink.store[RESOURCE_ENERGY] == 0 && storage.store[RESOURCE_ENERGY] >= 1000) {
+                    room.memory.centerLinkSentMode = true;
+                } else {
+                    room.memory.centerLinkSentMode = false;
+                }
+            }
+
+            if (centerLink.store.getFreeCapacity(RESOURCE_ENERGY) < 10
+                && room.memory.centerLinkSentMode) {
+                centerLink.transferEnergy(controllerLink);
             }
 
             for (linkIndex in links) {

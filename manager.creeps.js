@@ -156,19 +156,19 @@ function autoSpawnCreeps(room) {
         return;
     }
 
-    var fillerSpawn = Object.entries(Memory.creepConfig).filter(
-        ([configName, config]) => config.role == 'filler' && !Game.creeps[configName])
-
-    if (fillerSpawn && fillerSpawn.length > 0) {
-        roleBase.filler.spawn(room, fillerSpawn[0][0], fillerSpawn[0][1]);
-        return;
-    }
-
     var managerSpawn = Object.entries(Memory.creepConfig).filter(
         ([configName, config]) => config.role == 'manager' && !Game.creeps[configName])
 
     if (managerSpawn && managerSpawn.length > 0) {
         roleBase.manager.spawn(room, managerSpawn[0][0], managerSpawn[0][1]);
+        return;
+    }
+
+    var fillerSpawn = Object.entries(Memory.creepConfig).filter(
+        ([configName, config]) => config.role == 'filler' && !Game.creeps[configName])
+
+    if (fillerSpawn && fillerSpawn.length > 0) {
+        roleBase.filler.spawn(room, fillerSpawn[0][0], fillerSpawn[0][1]);
         return;
     }
 
