@@ -8,7 +8,7 @@ let visitedCreeps;
 const trafficManager = {
   init() {
     Creep.prototype.registerMove = function (target) {
-      this.moveTo(target);
+      this.moveTo(target, {visualizePathStyle: {}});
       // let targetPosition;
       
       // if (Number.isInteger(target)) {
