@@ -1,81 +1,6 @@
 const roomUtils = require("utils.room");
 const creepsUtils = require("utils.creeps");
 
-function genbodyHarvester(maxEnergy, totalEnergy, forceSpawn) {
-    var energy = forceSpawn ? totalEnergy : maxEnergy;
-    energy = Math.max(300, energy);
-    energy -= energy % 50;
-    var bodyParts = [];
-
-    bodyParts.push(MOVE);
-    bodyParts.push(CARRY);
-    energy -= BODYPART_COST.move;
-    energy -= BODYPART_COST.carry;
-
-    if (energy % 100 == 50) {
-        bodyParts.push(MOVE);
-        energy -= BODYPART_COST.move;
-    }
-
-    var workCount = parseInt(energy / BODYPART_COST.work);
-    workCount = Math.min(workCount, 4);
-    for (let i = 0; i < workCount; i++) {
-        bodyParts.push(WORK);
-    }
-
-    return bodyParts;
-}
-
-function genbodyFiller(maxEnergy, totalEnergy, forceSpawn) {
-    var energy = forceSpawn ? totalEnergy : maxEnergy;
-    energy = Math.max(300, energy);
-    energy -= energy % 50;
-    var bodyParts = [];
-
-    var totalPartCount = energy / 50;
-    if (totalPartCount % 2 == 1) {
-        totalPartCount -= 1;
-    }
-
-    totalPartCount = Math.min(totalPartCount, 50)
-
-    var singlePartCount = totalPartCount / 2;
-
-    for (let i = 0; i < singlePartCount; i++) {
-        bodyParts.push(MOVE);
-        bodyParts.push(CARRY);
-    }
-
-    return bodyParts;
-}
-
-function genbodyWorker(maxEnergy, totalEnergy, forceSpawn) {
-    var energy = forceSpawn ? totalEnergy : maxEnergy;
-    energy = Math.max(300, energy);
-    energy -= energy % 50;
-    var bodyParts = [];
-
-    bodyParts.push(CARRY);
-    bodyParts.push(MOVE);
-    energy -= BODYPART_COST.carry;
-    energy -= BODYPART_COST.move;
-
-    while (energy >= 150) {
-        bodyParts.push(WORK);
-        bodyParts.push(MOVE);
-        energy -= BODYPART_COST.work;
-        energy -= BODYPART_COST.move;
-    }
-
-    if (energy == 100) {
-        bodyParts.push(CARRY);
-        bodyParts.push(MOVE);
-        energy -= BODYPART_COST.carry;
-        energy -= BODYPART_COST.move;
-    }
-    return bodyParts;
-}
-
 var roleBase = {
     harvester: {
         spawn: function (room, creepName, creepMemory) {
@@ -85,7 +10,7 @@ var roleBase = {
             const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
             const fillerList = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'filler');
 
-            const bodyPart = genbodyHarvester(maxEnergy, totalEnergy, fillerList.length == 0);
+            const bodyPart = creepsUtils.genbodyHarvester(maxEnergy, totalEnergy, fillerList.length == 0);
             creepMemory.working = false;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
@@ -198,53 +123,6 @@ var roleBase = {
             }
         }
     },
-    manager: {
-        spawn: function (room, creepName, creepMemory) {
-            const maxEnergy = roomUtils.getMaxEnergy(room);
-            const totalEnergy = roomUtils.getTotalEnergy(room);
-
-            const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
-
-            const bodyPart = genbodyFiller(maxEnergy, totalEnergy, true);
-            creepMemory.working = false;
-            if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
-        },
-        isNeed: function (room) {
-            return room.memory.centerLink != null;
-        },
-        work: function (creep) {
-            const centerLink = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: structure => structure.id == creep.room.memory.centerLink
-            });
-            const roomCenter = creep.room.memory.roomCenter;
-            if (!creep.pos.isEqualTo(roomCenter.x, roomCenter.y)) {
-                creep.registerMove(new RoomPosition(roomCenter.x, roomCenter.y, roomCenter.roomName));
-                return;
-            }
-
-            const storage = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: structure => structure.structureType == STRUCTURE_STORAGE
-            });
-            const controllerLink = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: structure => structure.id == creep.room.memory.controllerLink
-            });
-
-            if (creep.room.memory.centerLinkSentMode) {
-                if (creep.store[RESOURCE_ENERGY] > 0) {
-                    creep.transfer(centerLink, RESOURCE_ENERGY);
-                } else {
-                    creep.withdraw(storage, RESOURCE_ENERGY);
-                }
-            } else {
-                if (creep.store[RESOURCE_ENERGY] > 0) {
-                    creep.transfer(storage, RESOURCE_ENERGY);
-                } else {
-                    creep.withdraw(centerLink, RESOURCE_ENERGY);
-                }
-            }
-
-        }
-    },
     filler: {
         spawn: function (room, creepName, creepMemory) {
             const maxEnergy = roomUtils.getMaxEnergy(room);
@@ -252,7 +130,7 @@ var roleBase = {
 
             const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
 
-            const bodyPart = genbodyFiller(maxEnergy, totalEnergy, true);
+            const bodyPart = creepsUtils.genbodyFiller(maxEnergy, totalEnergy, true);
             creepMemory.working = false;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
@@ -362,7 +240,7 @@ var roleBase = {
 
             const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
 
-            const bodyPart = genbodyWorker(maxEnergy, totalEnergy, false);
+            const bodyPart = creepsUtils.genbodyWorker(maxEnergy, totalEnergy, false);
             creepMemory.working = false;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
@@ -444,7 +322,7 @@ var roleBase = {
 
             const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
 
-            const bodyPart = genbodyWorker(maxEnergy, totalEnergy, false);
+            const bodyPart = creepsUtils.genbodyWorker(maxEnergy, totalEnergy, false);
             creepMemory.working = false;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
@@ -504,7 +382,7 @@ var roleBase = {
 
             const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
 
-            const bodyPart = genbodyWorker(maxEnergy, totalEnergy, false);
+            const bodyPart = creepsUtils.genbodyWorker(maxEnergy, totalEnergy, false);
             creepMemory.working = false;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },

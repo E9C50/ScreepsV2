@@ -41,7 +41,7 @@ var linkManager = {
                 }
             }
 
-            if (centerLink.store.getFreeCapacity(RESOURCE_ENERGY) < 10
+            if (centerLink && centerLink.store.getFreeCapacity(RESOURCE_ENERGY) < 10
                 && room.memory.centerLinkSentMode) {
                 centerLink.transferEnergy(controllerLink);
             }

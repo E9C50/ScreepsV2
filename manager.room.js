@@ -116,6 +116,12 @@ var roomManager = {
             // 检查控制器等级，发布建筑工地
             releaseConstructionSite(room);
 
+            // 缓存房间矿物信息
+            if (!room.memory.mineral) {
+                const mineral = room.find(FIND_MINERALS)[0];
+                room.memory.mineral = mineral;
+            }
+
             // 显示控制器升级进度
             const controllerPercent = (room.controller.progress / room.controller.progressTotal * 100).toFixed(2);
             room.visual.text(controllerPercent + ' %' + '', room.controller.pos.x, room.controller.pos.y + 2, { align: 'center' });

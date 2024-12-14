@@ -1,4 +1,5 @@
 const roleBase = require('role.base');
+const roleAdvanced = require('role.advanced');
 const roomUtils = require("utils.room");
 
 function creepsWork(creep) {
@@ -30,7 +31,10 @@ function creepsWork(creep) {
             roleBase.repairer.work(creep);
             break;
         case 'manager':
-            roleBase.manager.work(creep);
+            roleAdvanced.manager.work(creep);
+            break;
+        case 'miner':
+            roleAdvanced.miner.work(creep);
             break;
     }
 }
@@ -55,6 +59,18 @@ function releaseCreepConfig(room) {
             }
         }
     });
+
+    // 如果有，则发布一个矿工
+    var extractor = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_EXTRACTOR });
+    if (extractor && extractor.length > 0) {
+        const mineral = room.memory.mineral;
+        const minerConfigName = room.name + '_Miner_' + mineral.id;
+        Memory.creepConfig[minerConfigName] = {
+            role: 'miner',
+            sourceTarget: mineral.id,
+        };
+    }
+
 
     // 如果有Storage，发布一个专属Filler，并且每5w多一个upgrader
     var storages = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_STORAGE });
@@ -160,7 +176,7 @@ function autoSpawnCreeps(room) {
         ([configName, config]) => config.role == 'manager' && !Game.creeps[configName])
 
     if (managerSpawn && managerSpawn.length > 0) {
-        roleBase.manager.spawn(room, managerSpawn[0][0], managerSpawn[0][1]);
+        roleAdvanced.manager.spawn(room, managerSpawn[0][0], managerSpawn[0][1]);
         return;
     }
 
@@ -195,10 +211,18 @@ function autoSpawnCreeps(room) {
         roleBase.repairer.spawn(room, repairerSpawn[0][0], repairerSpawn[0][1]);
         return;
     }
+
+    var minerSpawn = Object.entries(Memory.creepConfig).filter(
+        ([configName, config]) => config.role == 'miner' && !Game.creeps[configName])
+
+    if (minerSpawn && minerSpawn.length > 0 && roleAdvanced.miner.isNeed(room)) {
+        roleAdvanced.miner.spawn(room, minerSpawn[0][0], minerSpawn[0][1]);
+        return;
+    }
 }
 
 function showCount(room) {
-    let roleCounts = { 'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0 };
+    let roleCounts = { 'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0, 'miner': 0 };
     for (let creepName in Game.creeps) {
         let creep = Game.creeps[creepName];
         let role = creep.memory.role;
@@ -211,7 +235,7 @@ function showCount(room) {
         }
     }
 
-    let roleMaxCounts = { 'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0 };
+    let roleMaxCounts = { 'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0, 'miner': 0 };
     for (let creepName in Memory.creepConfig) {
         let creep = Memory.creepConfig[creepName];
         let role = creep.role;
