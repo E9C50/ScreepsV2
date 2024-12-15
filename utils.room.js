@@ -13,7 +13,7 @@ function canBeRoomCenter(terrain, posx, posy, baseSize) {
     var swampCount = 0;
     for (let x = posx - harfBaseSize; x <= posx + harfBaseSize; x++) {
         for (let y = posy - harfBaseSize; y <= posy + harfBaseSize; y++) {
-            if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
+            if (x == 2 || y == 2 || x == 48 || y == 48 || terrain.get(x, y) === TERRAIN_MASK_WALL) {
                 return [false, Infinity];
             }
             if (terrain.get(x, y) === TERRAIN_MASK_SWAMP) {
@@ -40,10 +40,9 @@ var roomUtils = {
      * @returns 
      */
     getTotalEnergy: function (room) {
-        const spawns = room.find(FIND_MY_SPAWNS);
-        const extensions = room.find(FIND_MY_STRUCTURES, {
-            filter: structure => structure.structureType === STRUCTURE_EXTENSION
-        });
+        const spawns = room.spawns;
+
+        const extensions = room.extensions.filter(extension => extension.isActive());
 
         let totalEnergy = 0;
         spawns.forEach(spawn => totalEnergy += spawn.store[RESOURCE_ENERGY]);
@@ -56,9 +55,7 @@ var roomUtils = {
      * @param {*} room 
      */
     getMaxEnergy: function (room) {
-        var extensionCount = room.find(FIND_STRUCTURES, {
-            filter: structure => structure.structureType === STRUCTURE_EXTENSION
-        }).length;
+        var extensionCount = room.extensions.filter(extension => extension.isActive()).length;
         var maxEnergy = extensionCount * 50 + 300;
         return maxEnergy;
     },

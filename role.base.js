@@ -7,17 +7,16 @@ var roleBase = {
             const maxEnergy = roomUtils.getMaxEnergy(room);
             const totalEnergy = roomUtils.getTotalEnergy(room);
 
-            const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
+            const spawn = room.spawns[0];
             const fillerList = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'filler');
 
             const bodyPart = creepsUtils.genbodyHarvester(maxEnergy, totalEnergy, fillerList.length == 0);
             creepMemory.working = false;
+            creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         work: function (creep) {
-            const target = creep.pos.findClosestByRange(FIND_SOURCES, {
-                filter: source => source.id == creep.memory.sourceTarget
-            });
+            const target = Game.getObjectById(creep.memory.sourceTarget);
 
             if (!creep.pos.isNearTo(target)) {
                 this.prepar(creep);
@@ -39,15 +38,10 @@ var roleBase = {
             }
         },
         prepar: function (creep) {
-            const target = creep.pos.findClosestByRange(FIND_SOURCES, {
-                filter: source => source.id == creep.memory.sourceTarget
-            });
-            creep.registerMove(target.pos);
+            creep.moveTo(Game.getObjectById(creep.memory.sourceTarget));
         },
         source: function (creep) {
-            const target = creep.pos.findClosestByRange(FIND_SOURCES, {
-                filter: source => source.id == creep.memory.sourceTarget
-            });
+            const target = Game.getObjectById(creep.memory.sourceTarget);
             if (creep.harvest(target) != OK) {
                 creep.say('💤');
             }
@@ -57,32 +51,14 @@ var roleBase = {
                 filter: structure => structure.structureType == STRUCTURE_LINK
             });
 
-            const storages = creep.room.find(FIND_STRUCTURES, {
-                filter: structure => structure.structureType == STRUCTURE_STORAGE
-            });
-
             const containers = creep.pos.findInRange(FIND_STRUCTURES, 3, {
                 filter: structure => structure.structureType == STRUCTURE_CONTAINER
             });
 
             const constructionSite = creep.pos.findInRange(FIND_CONSTRUCTION_SITES, 3)[0];
 
-            // 在旁边构建Links
-            if (!constructionSite && links.length == 0) {
-                const source = Game.getObjectById(creep.memory.sourceTarget);
-
-                const dx = source.pos.x - creep.pos.x
-                const dy = source.pos.y - creep.pos.y
-
-                const linkX = creep.pos.x - dx;
-                const linkY = creep.pos.y - dy;
-
-                const linkPost = new RoomPosition(linkX, linkY, creep.room.name);
-                linkPost.createConstructionSite(STRUCTURE_LINK);
-            }
-
             // 在旁边构建Containers
-            const maxContainers = storages.length > 0 ? 1 : 1;
+            const maxContainers = creep.room.storage ? 1 : 1;
             if (!constructionSite && containers.length < maxContainers && links.length == 0) {
                 creep.pos.createConstructionSite(STRUCTURE_CONTAINER);
             }
@@ -117,7 +93,7 @@ var roleBase = {
 
             const result = creep.transfer(target, RESOURCE_ENERGY);
             if (result == ERR_NOT_IN_RANGE) {
-                creep.registerMove(target.pos);
+                creep.moveTo(target);
             } else if (result != OK) {
                 creep.say('💤');
             }
@@ -128,10 +104,11 @@ var roleBase = {
             const maxEnergy = roomUtils.getMaxEnergy(room);
             const totalEnergy = roomUtils.getTotalEnergy(room);
 
-            const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
+            const spawn = room.spawns[0];
 
             const bodyPart = creepsUtils.genbodyFiller(maxEnergy, totalEnergy, true);
             creepMemory.working = false;
+            creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         work: function (creep) {
@@ -169,25 +146,24 @@ var roleBase = {
 
             const withdrawResult = creep.withdraw(target, RESOURCE_ENERGY);
             if (withdrawResult == ERR_NOT_IN_RANGE) {
-                creep.registerMove(target.pos);
+                creep.moveTo(target);
             } else if (withdrawResult != OK) {
                 creep.say('💤');
             }
         },
         target: function (creep) {
             // 优先往Storage搬
-            var structures = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: (structure) => {
-                    return structure.structureType == STRUCTURE_STORAGE
-                        && structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
-                }
-            });
+            var structures = creep.room.storage;
+
+            if (structures && structures.store.getFreeCapacity() == 0) {
+                structures = null;
+            }
 
             const resourceList = Object.keys(creep.store).filter(resource => resource != RESOURCE_ENERGY);
             if (structures && resourceList && resourceList.length > 0) {
                 for (resource in resourceList) {
                     if (creep.transfer(structures, resource) == ERR_NOT_IN_RANGE) {
-                        creep.registerMove(structures.pos);
+                        creep.moveTo(structures);
                     }
                 }
             }
@@ -200,7 +176,7 @@ var roleBase = {
             if (!structures) {
                 structures = creep.pos.findClosestByRange(FIND_STRUCTURES, {
                     filter: structure => {
-                        return (structure.structureType == STRUCTURE_EXTENSION
+                        return ((structure.structureType == STRUCTURE_EXTENSION && structure.isActive())
                             || structure.structureType == STRUCTURE_SPAWN)
                             && structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
                     }
@@ -220,7 +196,7 @@ var roleBase = {
             // 转移资源
             if (structures) {
                 if (creep.transfer(structures, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-                    creep.registerMove(structures.pos);
+                    creep.moveTo(structures);
                 }
             } else {
                 creep.say('💤');
@@ -228,7 +204,7 @@ var roleBase = {
                     filter: (structure) => structure.structureType == STRUCTURE_EXTENSION
                 });
                 if (structures) {
-                    creep.registerMove(structures.pos);
+                    creep.moveTo(structures);
                 }
             }
         }
@@ -238,10 +214,11 @@ var roleBase = {
             const maxEnergy = roomUtils.getMaxEnergy(room);
             const totalEnergy = roomUtils.getTotalEnergy(room);
 
-            const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
+            const spawn = room.spawns[0];
 
             const bodyPart = creepsUtils.genbodyWorker(maxEnergy, totalEnergy, false);
             creepMemory.working = false;
+            creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         isNeed: function (room) {
@@ -276,13 +253,7 @@ var roleBase = {
 
             const withdrawResult = creep.withdraw(target, RESOURCE_ENERGY);
             if (withdrawResult == ERR_NOT_IN_RANGE) {
-                creep.registerMove(target.pos);
-            }
-            if (withdrawResult == ERR_NOT_ENOUGH_RESOURCES) {
-                const backTarget = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                    filter: (structure) => structure.structureType == STRUCTURE_SPAWN
-                });
-                creep.registerMove(backTarget.pos);
+                creep.moveTo(target);
             }
         },
         target: function (creep) {
@@ -307,10 +278,10 @@ var roleBase = {
 
             if (buildTarget) {
                 if (creep.build(buildTarget) == ERR_NOT_IN_RANGE) {
-                    creep.registerMove(buildTarget.pos);
+                    creep.moveTo(buildTarget);
                 }
             } else {
-                roleBase.upgrader.work(creep);
+                roleBase.repairer.work(creep);
                 // creep.memory.role = 'upgrader';
             }
         }
@@ -320,19 +291,19 @@ var roleBase = {
             const maxEnergy = roomUtils.getMaxEnergy(room);
             const totalEnergy = roomUtils.getTotalEnergy(room);
 
-            const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
+            const spawn = room.spawns[0];
 
             const bodyPart = creepsUtils.genbodyWorker(maxEnergy, totalEnergy, false);
             creepMemory.working = false;
+            creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         isNeed: function (room) {
             var maxController = room.controller.level == 8;
-            var storages = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_STORAGE });
-            if (!storages || storages.length == 0) {
+            if (!room.storage) {
                 return !maxController;
             } else {
-                return !maxController || storages[0].store[RESOURCE_ENERGY] > 5000000;
+                return !maxController || room.storage.store[RESOURCE_ENERGY] > 5000000;
             }
         },
         work: function (creep) {
@@ -366,12 +337,12 @@ var roleBase = {
 
             const withdrawResult = creep.withdraw(target, RESOURCE_ENERGY);
             if (withdrawResult == ERR_NOT_IN_RANGE) {
-                creep.registerMove(target.pos);
+                creep.moveTo(target);
             }
         },
         target: function (creep) {
             if (creep.upgradeController(creep.room.controller) == ERR_NOT_IN_RANGE) {
-                creep.registerMove(creep.room.controller.pos);
+                creep.moveTo(creep.room.controller);
             }
         }
     },
@@ -380,10 +351,11 @@ var roleBase = {
             const maxEnergy = roomUtils.getMaxEnergy(room);
             const totalEnergy = roomUtils.getTotalEnergy(room);
 
-            const spawn = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_SPAWN })[0];
+            const spawn = room.spawns[0];
 
             const bodyPart = creepsUtils.genbodyWorker(maxEnergy, totalEnergy, false);
             creepMemory.working = false;
+            creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         work: function (creep) {
@@ -413,13 +385,7 @@ var roleBase = {
 
             const withdrawResult = creep.withdraw(target, RESOURCE_ENERGY);
             if (withdrawResult == ERR_NOT_IN_RANGE) {
-                creep.registerMove(target.pos);
-            }
-            if (withdrawResult == ERR_NOT_ENOUGH_RESOURCES) {
-                const backTarget = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                    filter: (structure) => structure.structureType == STRUCTURE_SPAWN
-                });
-                creep.registerMove(backTarget.pos);
+                creep.moveTo(target);
             }
         },
         target: function (creep) {
@@ -444,7 +410,7 @@ var roleBase = {
 
             if (repairTarget) {
                 if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) {
-                    creep.registerMove(repairTarget.pos);
+                    creep.moveTo(repairTarget);
                 }
             } else {
                 roleBase.upgrader.work(creep);

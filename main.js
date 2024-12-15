@@ -1,12 +1,13 @@
 const roomManager = require('manager.room');
 const creepManager = require('manager.creeps');
-const trafficManager = require('manager.traffic');
 
 const towerManager = require('structure.tower');
 const linkManager = require('structure.link');
 const baseConsole = require('base.console');
 
-trafficManager.init();
+const profiler = require('utils.profiler');
+
+profiler.enable();
 
 module.exports.loop = function () {
     // 利用空闲CPU生成Pixel
@@ -14,23 +15,20 @@ module.exports.loop = function () {
         Game.cpu.generatePixel();
     }
 
-    // Room管理器
-    roomManager.run();
+    profiler.wrap(function () {
+        // Room管理器
+        roomManager.run();
 
-    // Creeps管理器
-    creepManager.run();
+        // Creeps管理器
+        creepManager.run();
 
-    // Tower管理器
-    towerManager.run();
+        // Tower管理器
+        towerManager.run();
 
-    // Link管理器
-    linkManager.run();
+        // Link管理器
+        linkManager.run();
 
-    // 绑定控制台命令
-    baseConsole.run();
-
-    for (const roomName in Game.rooms) {
-        const room = Game.rooms[roomName];
-        trafficManager.run(room);
-    }
+        // 绑定控制台命令
+        baseConsole.run();
+    });
 }

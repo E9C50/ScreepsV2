@@ -36,6 +36,9 @@ function creepsWork(creep) {
         case 'miner':
             roleAdvanced.miner.work(creep);
             break;
+        case 'claimer':
+            roleAdvanced.claimer.work(creep);
+            break;
     }
 }
 
@@ -45,72 +48,79 @@ function creepsWork(creep) {
  * @param {*} room 
  */
 function releaseCreepConfig(room) {
-    Memory.creepConfig = {};
+    if (!Memory.creepConfig) Memory.creepConfig = {};
+    Memory.creepConfig[room.name] = {};
 
     // 挖矿
-    room.find(FIND_SOURCES).forEach(source => {
+    room.sources.forEach(source => {
         var canHarvesterPos = roomUtils.getCanHarvesterPos(source.pos);
         canHarvesterPos = Math.min(canHarvesterPos, 2);
         for (i = 0; i < canHarvesterPos; i++) {
             const configName = room.name + '_Harvester_' + source.id + '_' + i;
-            Memory.creepConfig[configName] = {
+            Memory.creepConfig[room.name][configName] = {
                 role: 'harvester',
+                room: room.name,
                 sourceTarget: source.id,
             }
         }
     });
 
     // 如果有，则发布一个矿工
-    var extractor = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_EXTRACTOR });
-    if (extractor && extractor.length > 0) {
-        const mineral = room.memory.mineral;
+    if (room.extractor) {
+        const mineral = room.mineral;
         const minerConfigName = room.name + '_Miner_' + mineral.id;
-        Memory.creepConfig[minerConfigName] = {
+        Memory.creepConfig[room.name][minerConfigName] = {
             role: 'miner',
+            room: room.name,
             sourceTarget: mineral.id,
         };
     }
 
 
     // 如果有Storage，发布一个专属Filler，并且每5w多一个upgrader
-    var storages = room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_STORAGE });
-    if (storages && storages.length > 0) {
-        const fillerStorageConfigName = room.name + '_FillerStorage_' + storages[0].id;
-        Memory.creepConfig[fillerStorageConfigName] = {
+    var storage = room.storage;
+    if (storage) {
+        const fillerStorageConfigName = room.name + '_FillerStorage_' + storage.id;
+        Memory.creepConfig[room.name][fillerStorageConfigName] = {
             role: 'filler',
-            sourceTarget: storages[0].id,
+            room: room.name,
+            sourceTarget: storage.id,
         };
 
-        var workCount = parseInt(storages[0].store[RESOURCE_ENERGY] / 100000);
+        var workCount = parseInt(storage.store[RESOURCE_ENERGY] / 100000);
         workCount += 1;
 
         if (room.controller.level == 8) {
             workCount = 1;
         }
         for (i = 0; i < workCount; i++) {
-            const upgraderConfigName = room.name + '_UpgraderStorage_' + storages[0].id + '_' + i;
-            Memory.creepConfig[upgraderConfigName] = {
+            const upgraderConfigName = room.name + '_UpgraderStorage_' + storage.id + '_' + i;
+            Memory.creepConfig[room.name][upgraderConfigName] = {
                 role: 'upgrader',
-                sourceTarget: storages[0].id,
+                room: room.name,
+                sourceTarget: storage.id,
             };
 
-            const builderConfigName = room.name + '_BuilderStorage_' + storages[0].id + '_' + i;
-            Memory.creepConfig[builderConfigName] = {
+            const builderConfigName = room.name + '_BuilderStorage_' + storage.id + '_' + i;
+            Memory.creepConfig[room.name][builderConfigName] = {
                 role: 'builder',
-                sourceTarget: storages[0].id,
+                room: room.name,
+                sourceTarget: storage.id,
             };
 
-            const repairerConfigName = room.name + '_RepairerStorage_' + storages[0].id + '_' + i;
-            Memory.creepConfig[repairerConfigName] = {
+            const repairerConfigName = room.name + '_RepairerStorage_' + storage.id + '_' + i;
+            Memory.creepConfig[room.name][repairerConfigName] = {
                 role: 'repairer',
-                sourceTarget: storages[0].id,
+                room: room.name,
+                sourceTarget: storage.id,
             };
         }
     }
 
     if (room.memory.centerLink) {
         const managerConfigName = room.name + '_Manager';
-        Memory.creepConfig[managerConfigName] = {
+        Memory.creepConfig[room.name][managerConfigName] = {
+            room: room.name,
             role: 'manager'
         };
     }
@@ -120,27 +130,31 @@ function releaseCreepConfig(room) {
     room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_CONTAINER })
         .forEach(structure => {
             const fillerConfigName = room.name + '_FillerContainer_' + structure.id;
-            Memory.creepConfig[fillerConfigName] = {
+            Memory.creepConfig[room.name][fillerConfigName] = {
                 role: 'filler',
+                room: room.name,
                 sourceTarget: structure.id,
             };
 
-            const sourceId = storages.length > 0 ? storages[0].id : structure.id;
+            const sourceId = storage ? storage.id : structure.id;
             const builderConfigName = room.name + '_BuilderContainer_' + sourceId;
-            Memory.creepConfig[builderConfigName] = {
+            Memory.creepConfig[room.name][builderConfigName] = {
                 role: 'builder',
+                room: room.name,
                 sourceTarget: sourceId,
             };
 
             const upgraderConfigName = room.name + '_UpgraderContainer_' + sourceId;
-            Memory.creepConfig[upgraderConfigName] = {
+            Memory.creepConfig[room.name][upgraderConfigName] = {
                 role: 'upgrader',
+                room: room.name,
                 sourceTarget: sourceId,
             };
 
             const repairerConfigName = room.name + '_RepairerContainer_' + sourceId;
-            Memory.creepConfig[repairerConfigName] = {
+            Memory.creepConfig[room.name][repairerConfigName] = {
                 role: 'repairer',
+                room: room.name,
                 sourceTarget: sourceId,
             };
         });
@@ -155,7 +169,7 @@ function autoSpawnCreeps(room) {
     const fillers = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'filler');
 
     if (harvester.length > 0 && fillers.length == 0) {
-        var fillerSpawn = Object.entries(Memory.creepConfig).filter(
+        var fillerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
             ([configName, config]) => config.role == 'filler' && !Game.creeps[configName])
 
         if (fillerSpawn && fillerSpawn.length > 0) {
@@ -164,7 +178,7 @@ function autoSpawnCreeps(room) {
         }
     }
 
-    var harvesterSpawn = Object.entries(Memory.creepConfig).filter(
+    var harvesterSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
         ([configName, config]) => config.role == 'harvester' && !Game.creeps[configName])
 
     if (harvesterSpawn && harvesterSpawn.length > 0) {
@@ -172,7 +186,7 @@ function autoSpawnCreeps(room) {
         return;
     }
 
-    var managerSpawn = Object.entries(Memory.creepConfig).filter(
+    var managerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
         ([configName, config]) => config.role == 'manager' && !Game.creeps[configName])
 
     if (managerSpawn && managerSpawn.length > 0) {
@@ -180,7 +194,7 @@ function autoSpawnCreeps(room) {
         return;
     }
 
-    var fillerSpawn = Object.entries(Memory.creepConfig).filter(
+    var fillerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
         ([configName, config]) => config.role == 'filler' && !Game.creeps[configName])
 
     if (fillerSpawn && fillerSpawn.length > 0) {
@@ -188,7 +202,7 @@ function autoSpawnCreeps(room) {
         return;
     }
 
-    var builderSpawn = Object.entries(Memory.creepConfig).filter(
+    var builderSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
         ([configName, config]) => config.role == 'builder' && !Game.creeps[configName])
 
     if (builderSpawn && builderSpawn.length > 0 && roleBase.builder.isNeed(room)) {
@@ -196,7 +210,7 @@ function autoSpawnCreeps(room) {
         return;
     }
 
-    var upgraderSpawn = Object.entries(Memory.creepConfig).filter(
+    var upgraderSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
         ([configName, config]) => config.role == 'upgrader' && !Game.creeps[configName])
 
     if (upgraderSpawn && upgraderSpawn.length > 0 && roleBase.upgrader.isNeed(room)) {
@@ -204,7 +218,7 @@ function autoSpawnCreeps(room) {
         return;
     }
 
-    var repairerSpawn = Object.entries(Memory.creepConfig).filter(
+    var repairerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
         ([configName, config]) => config.role == 'repairer' && !Game.creeps[configName])
 
     if (repairerSpawn && repairerSpawn.length > 0) {
@@ -212,7 +226,7 @@ function autoSpawnCreeps(room) {
         return;
     }
 
-    var minerSpawn = Object.entries(Memory.creepConfig).filter(
+    var minerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
         ([configName, config]) => config.role == 'miner' && !Game.creeps[configName])
 
     if (minerSpawn && minerSpawn.length > 0 && roleAdvanced.miner.isNeed(room)) {
@@ -226,8 +240,9 @@ function showCount(room) {
     for (let creepName in Game.creeps) {
         let creep = Game.creeps[creepName];
         let role = creep.memory.role;
+        let creepRoom = creep.memory.room;
 
-        if (role) {
+        if (role && creepRoom == room.name) {
             if (!roleCounts[role]) {
                 roleCounts[role] = 0;
             }
@@ -236,8 +251,8 @@ function showCount(room) {
     }
 
     let roleMaxCounts = { 'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0, 'miner': 0 };
-    for (let creepName in Memory.creepConfig) {
-        let creep = Memory.creepConfig[creepName];
+    for (let creepName in Memory.creepConfig[room.name]) {
+        let creep = Memory.creepConfig[room.name][creepName];
         let role = creep.role;
 
         if (role) {
@@ -248,12 +263,14 @@ function showCount(room) {
         }
     }
 
-    const roomCenter = room.memory.roomCenter;
+    delete roleCounts['claimer'];
+
+    const roomCenter = room.controller.pos;
     if (roomCenter) {
         var index = roomCenter.y - 2;
         for (role in roleCounts) {
-            room.visual.text(role, roomCenter.x + 8, index, { align: 'left' });
-            room.visual.text(roleCounts[role] + '/' + roleMaxCounts[role], roomCenter.x + 12, index, { align: 'center' });
+            room.visual.text(role, roomCenter.x + 2, index, { align: 'left' });
+            room.visual.text(roleCounts[role] + '/' + roleMaxCounts[role], roomCenter.x + 6, index, { align: 'center' });
             index++;
         }
     }

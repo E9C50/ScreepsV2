@@ -1,3 +1,4 @@
+
 var creepsUtils = {
     /**
      * 挖矿BodyPart构建
@@ -108,7 +109,7 @@ var creepsUtils = {
 
         if (droppedEnergy.length > 0) {
             if (creep.pickup(droppedEnergy[0]) == ERR_NOT_IN_RANGE) {
-                creep.registerMove(droppedEnergy[0].pos);
+                creep.moveTo(droppedEnergy[0]);
             }
             return true;
         }
@@ -132,7 +133,7 @@ var creepsUtils = {
                     continue;
                 }
                 if (creep.withdraw(destroyed[0], resource) == ERR_NOT_IN_RANGE) {
-                    creep.registerMove(destroyed[0].pos);
+                    creep.moveTo(destroyed[0]);
                 }
             }
             return true;

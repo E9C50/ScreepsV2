@@ -1,4 +1,5 @@
 var settings = {
+    defaultConrtollerSign: 'Hello Screeps!!!',
     baseLayout: {
         1: {},
         2: {
