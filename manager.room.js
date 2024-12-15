@@ -71,7 +71,8 @@ function releaseConstructionSite(room) {
             const constructionPosY = roomCenter.y + posOffset.y;
             const constructionPos = new RoomPosition(constructionPosX, constructionPosY, room.name);
             if (constructionPos.lookFor(LOOK_CONSTRUCTION_SITES).length == 0
-                && constructionPos.lookFor(LOOK_STRUCTURES).length == 0) {
+                && (constructionPos.lookFor(LOOK_STRUCTURES).length == 0
+                    || index == STRUCTURE_RAMPART)) {
                 constructionPos.createConstructionSite(index);
             }
         }
@@ -172,12 +173,12 @@ function cacheRoomObjects(room) {
     Object.defineProperty(Room.prototype, 'extensions', {
         get: function () {
             if (!this._extensions) {
-                if (!this.memory._extensionsIds) {
-                    this.memory._extensionsIds = this.find(FIND_STRUCTURES)
+                if (!this.memory.extensionsIds) {
+                    this.memory.extensionsIds = this.find(FIND_STRUCTURES)
                         .filter(structure => structure.structureType == STRUCTURE_EXTENSION)
                         .map(structure => structure.id);
                 }
-                this._extensions = this.memory._extensionsIds.map(id => Game.getObjectById(id));
+                this._extensions = this.memory.extensionsIds.map(id => Game.getObjectById(id));
             }
             return this._extensions;
         },
@@ -203,13 +204,13 @@ function cacheRoomObjects(room) {
     Object.defineProperty(Room.prototype, 'extractor', {
         get: function () {
             if (!this._extractor) {
-                if (!this.memory._extractorId) {
+                if (!this.memory.extractorId) {
                     const extractorList = this.find(FIND_STRUCTURES, {
                         filter: structure => structure.structureType == STRUCTURE_EXTRACTOR
                     });
-                    this.memory._extractorId = extractorList.length > 0 ? extractorList[0].id : null;
+                    this.memory.extractorId = extractorList.length > 0 ? extractorList[0].id : null;
                 }
-                this._extractor = Game.getObjectById(this.memory._extractorId);
+                this._extractor = Game.getObjectById(this.memory.extractorId);
             }
             return this._extractor;
         },

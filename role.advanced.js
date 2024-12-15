@@ -71,7 +71,7 @@ var roleAdvanced = {
                 filter: structure => structure.id == creep.room.memory.centerLink
             });
             const roomCenter = creep.room.memory.roomCenter;
-            if (!creep.pos.isEqualTo(roomCenter.x, roomCenter.y)) {
+            if (roomCenter && !creep.pos.isEqualTo(roomCenter.x, roomCenter.y)) {
                 const roomCenterPos = new RoomPosition(roomCenter.x, roomCenter.y, roomCenter.roomName)
                 // creep.moveTo(roomCenterPos);
                 creep.moveTo(roomCenterPos);
