@@ -4,13 +4,62 @@ const roleBase = require("role.base");
 const settings = require("base.settings");
 
 var roleAdvanced = {
+    remoteHarvester: {
+        spawn: function (room, creepName, creepMemory) {
+            const spawn = room.spawns[0];
+            const harvesters = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'harvester');
+            const bodyConfigs = settings.bodyConfigs.remoteHarvester;
+            const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, harvesters.length == 0);
+            creepMemory.working = false;
+            creepMemory.room = room.name;
+
+            if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
+        },
+        work: function (creep) {
+            // 调整工作模式
+            if (!creep.memory.working && creep.store[RESOURCE_ENERGY] == 0) {
+                creep.memory.working = true;
+            }
+            if (creep.memory.working && creep.store.getFreeCapacity() == 0) {
+                creep.memory.working = false;
+            }
+
+            if (creep.memory.working) {
+                this.source(creep);
+            } else {
+                this.target(creep);
+            }
+        },
+        source: function (creep) {
+            if (creepsUtils.pickupDroppedResource(creep, false)) {
+                return;
+            }
+            const target = Game.getObjectById(creep.memory.sourceTarget);
+            if (creep.harvest(target) == ERR_NOT_IN_RANGE) {
+                creep.moveTo(Game.getObjectById(creep.memory.sourceTarget));
+            }
+        },
+        target: function (creep) {
+            if (creep.room.name != creep.memory.room) {
+                creep.moveTo(new RoomPosition(25, 25, creep.memory.room));
+                return;
+            }
+
+            var targets = [creep.room.storage]
+            if (creep.room.memory.sideLinks) {
+                targets = targets.concat(creep.room.memory.sideLinks.map(sideLinkId => Game.getObjectById(sideLinkId)));
+            }
+            const target = targets.sort((a, b) => a.pos.getRangeTo(creep) - b.pos.getRangeTo(creep))[0];
+            if (creep.transfer(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                creep.moveTo(target);
+            }
+        }
+    },
     miner: {
         spawn: function (room, creepName, creepMemory) {
-            const maxEnergy = roomUtils.getMaxEnergy(room);
-            const totalEnergy = roomUtils.getTotalEnergy(room);
-
             const spawn = room.spawns[0];
-            const bodyPart = creepsUtils.genbodyWorker(maxEnergy, totalEnergy, false);
+            const bodyConfigs = settings.bodyConfigs.remoteHarvester;
+            const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             creepMemory.working = false;
             creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
@@ -37,9 +86,11 @@ var roleAdvanced = {
         },
         source: function (creep) {
             const target = Game.getObjectById(creep.memory.sourceTarget);
-            if (creep.harvest(target) == ERR_NOT_IN_RANGE) {
+            if (!creep.pos.isNearTo(target)) {
                 creep.moveTo(target);
+                return;
             }
+            creep.harvest(target);
         },
         target: function (creep) {
             const mineral = creep.room.mineral;
@@ -53,13 +104,11 @@ var roleAdvanced = {
     },
     manager: {
         spawn: function (room, creepName, creepMemory) {
-            const maxEnergy = roomUtils.getMaxEnergy(room);
-            const totalEnergy = roomUtils.getTotalEnergy(room);
-
             const spawn = room.spawns[0];
-
-            const bodyPart = creepsUtils.genbodyFiller(maxEnergy, totalEnergy, true);
+            const bodyConfigs = settings.bodyConfigs.manager;
+            const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, true);
             creepMemory.working = false;
+            creepMemory.dontPullMe = true;
             creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
@@ -100,7 +149,8 @@ var roleAdvanced = {
     claimer: {
         spawn: function (room, creepMemory) {
             const spawn = room.spawns[0];
-            const bodyPart = [WORK, WORK, WORK, WORK, CLAIM, CARRY, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE];
+            const bodyConfigs = settings.bodyConfigs.claimer;
+            const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             const creepName = 'Claimer_' + room.name + '_' + creepMemory.targetRoom;
             creepMemory.working = false;
             creepMemory.room = room.name;
@@ -180,6 +230,35 @@ var roleAdvanced = {
                     creep.moveTo(constructionSites[0]);
                 }
             }
+        }
+    },
+    reserver: {
+        spawn: function (room, creepMemory) {
+            const spawn = room.spawns[0];
+            const bodyPart = [CLAIM, CLAIM, MOVE, MOVE];
+            const creepName = 'Reserver_' + room.name + '_' + creepMemory.targetRoom;
+            creepMemory.working = false;
+            creepMemory.room = room.name;
+            if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
+        },
+        work: function (creep) {
+            if (creep.room.name != creep.memory.targetRoom) {
+                creep.say('📍');
+                const targetRoomPos = new RoomPosition(25, 25, creep.memory.targetRoom)
+                creep.moveTo(targetRoomPos);
+                return;
+            }
+
+            const targetRoom = Game.rooms[creep.memory.targetRoom];
+            const roomController = targetRoom.controller;
+
+            if (!roomController.my && !creep.pos.isNearTo(roomController)) {
+                creep.say('📍');
+                creep.moveTo(roomController);
+                return;
+            }
+
+            creep.reserveController(roomController);
         }
     },
 };

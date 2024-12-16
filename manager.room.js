@@ -17,8 +17,8 @@ function safeModeChecker(room) {
             && structure.structureType != STRUCTURE_CONTAINER
         ) {
             if (room.controller && !room.controller.safeMode) {
-                // const result = structure.controller.activateSafeMode();
-                console.log('立即激活安全模式！！！');
+                // room.controller.activateSafeMode();
+                console.log(room.name + ' 建筑受到破坏，立即激活安全模式！！！');
             }
         }
     });
@@ -81,7 +81,7 @@ function releaseConstructionSite(room) {
                 if (constructionAtPos.length == 0 && (structureAtPos.length == 0
                     || (index == STRUCTURE_RAMPART && rampartAtPos.length == 0))) {
                     constructionPos.createConstructionSite(index);
-                    console.log('createConstructionSite')
+                    // console.log('createConstructionSite ' + index)
                 }
             }
         }
@@ -101,16 +101,48 @@ function releaseConstructionSite(room) {
 /**
  * 处理正在占领中的房间
  */
-function processClaiming() {
-    for (claiming in Memory.claiming) {
+function processRemoteWork() {
+    if (!Memory.outWork) Memory.outWork = {};
+    for (claiming in Memory.outWork.claiming) {
         const targetRoom = claiming;
-        const sourceRoom = Memory.claiming[targetRoom]
+        const sourceRoom = Memory.outWork.claiming[targetRoom]
         const creepName = 'Claimer_' + sourceRoom + '_' + targetRoom;
 
         if (!Game.creeps[creepName]) {
             claimRoom(sourceRoom, targetRoom);
         }
     }
+
+    for (reserving in Memory.outWork.reserving) {
+        const targetRoom = reserving;
+        const sourceRoom = Memory.outWork.reserving[targetRoom]
+        const creepName = 'Reserver_' + sourceRoom + '_' + targetRoom;
+
+        if (!Game.creeps[creepName]) {
+            reserverRoom(sourceRoom, targetRoom);
+        }
+    }
+
+    for (remoteHarvest in Memory.outWork.remoteHarvest) {
+        const sourceId = remoteHarvest;
+        const sourceRoom = Memory.outWork.remoteHarvest[sourceId]
+        const room = Game.rooms[sourceRoom];
+        const memory = {
+            'room': room.name,
+            'role': 'remoteHarvester',
+            'sourceTarget': sourceId,
+        }
+
+        const creepName1 = 'RemoteHarvester_' + sourceRoom + '_' + sourceId + '_1';
+        if (!Game.creeps[creepName1]) {
+            roleAdvanced.remoteHarvester.spawn(room, creepName1, memory);
+        }
+        const creepName2 = 'RemoteHarvester_' + sourceRoom + '_' + sourceId + '_2';
+        if (!Game.creeps[creepName2]) {
+            roleAdvanced.remoteHarvester.spawn(room, creepName2, memory);
+        }
+    }
+
 }
 
 /**
@@ -128,10 +160,33 @@ function claimRoom(sourceRoom, targetRoom) {
 }
 
 /**
+ * 预定房间
+ * @param {*} sourceRoom 
+ * @param {*} targetRoom 
+ */
+function reserverRoom(sourceRoom, targetRoom) {
+    const room = Game.rooms[sourceRoom];
+    const memory = {
+        'role': 'reserver',
+        'targetRoom': targetRoom
+    }
+    roleAdvanced.reserver.spawn(room, memory);
+}
+
+/**
  * 展示房间信息
  * @param {*} room 
  */
 function showRoomInfo(room) {
+    // 显示Spawn孵化进度
+    room.spawns.forEach(spawn => {
+        if (spawn.spawning) {
+            const spawnPercent = ((spawn.spawning.needTime - spawn.spawning.remainingTime) / spawn.spawning.needTime * 100).toFixed(2);
+            const role = Game.creeps[spawn.spawning.name].memory.role;
+            room.visual.text(role + ' ' + spawnPercent + ' %', spawn.pos.x, spawn.pos.y + 2, { align: 'center' });
+        }
+    });
+
     // 显示控制器升级进度
     const controllerPercent = (room.controller.progress / room.controller.progressTotal * 100).toFixed(2);
     room.visual.text(controllerPercent + ' %' + '', room.controller.pos.x, room.controller.pos.y + 2, { align: 'center' });
@@ -167,7 +222,7 @@ function cacheRoomObjects() {
     Object.defineProperty(Room.prototype, 'spawns', {
         get: function () {
             if (!this._spawns) {
-                if (!this.memory.spawnIds || this.memory.spawnIds == '') {
+                if (!this.memory.spawnIds || this.memory.spawnIds == '' || Game.time % 10 == 0) {
                     this.memory.spawnIds = this.find(FIND_STRUCTURES)
                         .filter(structure => structure.structureType == STRUCTURE_SPAWN)
                         .map(structure => structure.id);
@@ -183,7 +238,7 @@ function cacheRoomObjects() {
     Object.defineProperty(Room.prototype, 'extensions', {
         get: function () {
             if (!this._extensions) {
-                if (!this.memory.extensionsIds) {
+                if (!this.memory.extensionsIds || this.memory.extensionsIds.length == 0 || Game.time % 10 == 0) {
                     this.memory.extensionsIds = this.find(FIND_STRUCTURES)
                         .filter(structure => structure.structureType == STRUCTURE_EXTENSION)
                         .map(structure => structure.id);
@@ -199,7 +254,7 @@ function cacheRoomObjects() {
     Object.defineProperty(Room.prototype, 'storage', {
         get: function () {
             if (!this._storage) {
-                if (!this.memory.storageId) {
+                if (!this.memory.storageId || Game.time % 10 == 0) {
                     const storageList = this.find(FIND_STRUCTURES, {
                         filter: structure => structure.structureType == STRUCTURE_STORAGE
                     });
@@ -218,7 +273,7 @@ function cacheRoomObjects() {
     Object.defineProperty(Room.prototype, 'extractor', {
         get: function () {
             if (!this._extractor) {
-                if (!this.memory.extractorId) {
+                if (!this.memory.extractorId || Game.time % 10 == 0) {
                     const extractorList = this.find(FIND_STRUCTURES, {
                         filter: structure => structure.structureType == STRUCTURE_EXTRACTOR
                     });
@@ -316,8 +371,8 @@ var roomManager = {
             showRoomInfo(room);
         }
 
-        // 处理正在占领中的房间
-        processClaiming();
+        // 处理远程房间工作
+        processRemoteWork();
     }
 };
 

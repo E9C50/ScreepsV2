@@ -7,6 +7,7 @@ const baseConsole = require('base.console');
 
 const profiler = require('utils.profiler');
 
+require('utils.move');
 profiler.enable();
 
 module.exports.loop = function () {

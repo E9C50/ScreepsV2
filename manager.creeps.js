@@ -39,6 +39,12 @@ function creepsWork(creep) {
         case 'claimer':
             roleAdvanced.claimer.work(creep);
             break;
+        case 'reserver':
+            roleAdvanced.reserver.work(creep);
+            break;
+        case 'remoteHarvester':
+            roleAdvanced.remoteHarvester.work(creep);
+            break;
     }
 }
 
@@ -55,6 +61,7 @@ function releaseCreepConfig(room) {
     room.sources.forEach(source => {
         var canHarvesterPos = source.freeSpaceCount;
         canHarvesterPos = Math.min(canHarvesterPos, 2);
+        if (room.controller.level > 3) canHarvesterPos = 1;
         for (i = 0; i < canHarvesterPos; i++) {
             const configName = room.name + '_Harvester_' + source.id + '_' + i;
             Memory.creepConfig[room.name][configName] = {
@@ -167,6 +174,14 @@ function releaseCreepConfig(room) {
 function autoSpawnCreeps(room) {
     const harvester = _.filter(Game.creeps, (creep) => creep.memory.room == room.name && creep.memory.role == 'harvester');
     const fillers = _.filter(Game.creeps, (creep) => creep.memory.room == room.name && creep.memory.role == 'filler');
+    const managers = _.filter(Game.creeps, (creep) => creep.memory.room == room.name && creep.memory.role == 'manager');
+
+    var managerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
+        ([configName, config]) => config.role == 'manager' && !Game.creeps[configName])
+    if (harvester.length > 0 && managers.length == 0 && managerSpawn && managerSpawn.length > 0) {
+        roleAdvanced.manager.spawn(room, managerSpawn[0][0], managerSpawn[0][1]);
+        return;
+    }
 
     if (harvester.length > 0 && fillers.length == 0) {
         var fillerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
@@ -264,6 +279,8 @@ function showCount(room) {
     }
 
     delete roleCounts['claimer'];
+    delete roleCounts['reserver'];
+    delete roleCounts['remoteHarvester'];
 
     const roomCenter = room.controller.pos;
     if (roomCenter) {
@@ -288,7 +305,7 @@ var creepsManager = {
         for (roomName in Game.rooms) {
             const room = Game.rooms[roomName];
             if (!room.controller.my) continue;
-            
+
             // 检查房间信息，发布Creep需求
             releaseCreepConfig(room);
 

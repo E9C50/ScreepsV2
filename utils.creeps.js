@@ -1,113 +1,45 @@
 
 var creepsUtils = {
     /**
-     * 挖矿BodyPart构建
-     * @param {*} maxEnergy 
-     * @param {*} totalEnergy 
-     * @param {*} forceSpawn 
+     * 构建BodyPart
+     * @param {*} bodySets 
      * @returns 
      */
-    genbodyHarvester: function (maxEnergy, totalEnergy, forceSpawn) {
-        var energy = forceSpawn ? totalEnergy : maxEnergy;
-        energy = Math.max(300, energy);
-        energy -= energy % 50;
-        var bodyParts = [];
+    getBodyConfig: function (room, bodyConfigs, forceSpawn) {
+        const energy = forceSpawn ? room.energyAvailable : room.energyCapacityAvailable;
 
-        bodyParts.push(MOVE);
-        bodyParts.push(CARRY);
-        energy -= BODYPART_COST.move;
-        energy -= BODYPART_COST.carry;
+        var bodyConfig = [];
+        for (i = 7; i >= 0; i--) {
+            var needEnergy = 0;
+            for (config in bodyConfigs[i]) {
+                needEnergy += BODYPART_COST[config] * bodyConfigs[i][config];
+            }
 
-        if (energy % 100 == 50) {
-            bodyParts.push(MOVE);
-            energy -= BODYPART_COST.move;
+            if (needEnergy <= energy) {
+                for (config in bodyConfigs[i]) {
+                    bodyConfig = bodyConfig.concat(Array.from({ length: bodyConfigs[i][config] }, (k, v) => config));
+                }
+                break;
+            }
         }
 
-        var workCount = parseInt(energy / BODYPART_COST.work);
-        workCount = Math.min(workCount, 4);
-        for (let i = 0; i < workCount; i++) {
-            bodyParts.push(WORK);
-        }
-
-        return bodyParts;
-    },
-    /**
-     * 搬运BodyPart构建
-     * @param {*} maxEnergy 
-     * @param {*} totalEnergy 
-     * @param {*} forceSpawn 
-     * @returns 
-     */
-    genbodyFiller: function (maxEnergy, totalEnergy, forceSpawn) {
-        var energy = forceSpawn ? totalEnergy : maxEnergy;
-        energy = Math.max(300, energy);
-        energy -= energy % 50;
-        var bodyParts = [];
-
-        var totalPartCount = energy / 50;
-        if (totalPartCount % 2 == 1) {
-            totalPartCount -= 1;
-        }
-
-        totalPartCount = Math.min(totalPartCount, 50)
-
-        var singlePartCount = totalPartCount / 2;
-
-        for (let i = 0; i < singlePartCount; i++) {
-            bodyParts.push(MOVE);
-            bodyParts.push(CARRY);
-        }
-
-        return bodyParts;
-    },
-    /**
-     * 工作BodyPart构建
-     * @param {*} maxEnergy 
-     * @param {*} totalEnergy 
-     * @param {*} forceSpawn 
-     * @returns 
-     */
-    genbodyWorker: function (maxEnergy, totalEnergy, forceSpawn) {
-        var energy = forceSpawn ? totalEnergy : maxEnergy;
-        energy = Math.max(300, energy);
-        energy -= energy % 50;
-        var bodyParts = [];
-
-        bodyParts.push(CARRY);
-        bodyParts.push(MOVE);
-        energy -= BODYPART_COST.carry;
-        energy -= BODYPART_COST.move;
-
-        while (energy >= 150) {
-            bodyParts.push(WORK);
-            bodyParts.push(MOVE);
-            energy -= BODYPART_COST.work;
-            energy -= BODYPART_COST.move;
-        }
-
-        if (energy == 100) {
-            bodyParts.push(CARRY);
-            bodyParts.push(MOVE);
-            energy -= BODYPART_COST.carry;
-            energy -= BODYPART_COST.move;
-        }
-        return bodyParts;
+        return bodyConfig;
     },
     /**
      * 捡起地上掉落的资源/墓碑的资源
      * @param {*} creep 
      * @returns 
      */
-    pickupDroppedResource: function (creep, allSource) {
+    pickupDroppedResource: function (creep, allSource, range = 3) {
         // 没有携带空间的跳过
         if (creep.store.getFreeCapacity() == 0) {
             return false;
         }
 
         // 优先捡起附近掉落的资源
-        const droppedEnergy = creep.pos.findInRange(FIND_DROPPED_RESOURCES, 5);
+        const droppedEnergy = creep.pos.findInRange(FIND_DROPPED_RESOURCES, range);
 
-        if (droppedEnergy.length > 0) {
+        if (!allSource && droppedEnergy.length > 0) {
             if (creep.pickup(droppedEnergy[0]) == ERR_NOT_IN_RANGE) {
                 creep.moveTo(droppedEnergy[0]);
             }
@@ -115,13 +47,13 @@ var creepsUtils = {
         }
 
         // 查找附近墓碑的资源
-        var destroyed = creep.pos.findInRange(FIND_TOMBSTONES, 5, {
+        var destroyed = creep.pos.findInRange(FIND_TOMBSTONES, range, {
             filter: tombstone => tombstone.store.getUsedCapacity() > 0
         });
 
         // 查找附近遗址的资源
         if (destroyed == '' || destroyed.length == 0) {
-            destroyed = creep.pos.findInRange(FIND_RUINS, 10, {
+            destroyed = creep.pos.findInRange(FIND_RUINS, range, {
                 filter: ruin => ruin.store.getUsedCapacity() > 0
             });
         }

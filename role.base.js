@@ -1,18 +1,18 @@
 const roomUtils = require("utils.room");
 const creepsUtils = require("utils.creeps");
+const settings = require("base.settings");
+
 
 var roleBase = {
     harvester: {
         spawn: function (room, creepName, creepMemory) {
-            const maxEnergy = roomUtils.getMaxEnergy(room);
-            const totalEnergy = roomUtils.getTotalEnergy(room);
-
             const spawn = room.spawns[0];
-            const fillerList = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'filler');
-
-            const bodyPart = creepsUtils.genbodyHarvester(maxEnergy, totalEnergy, fillerList.length == 0);
+            const harvesters = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'harvester');
+            const bodyConfigs = settings.bodyConfigs.harvester;
+            const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, harvesters.length == 0);
             creepMemory.working = false;
             creepMemory.room = room.name;
+
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         work: function (creep) {
@@ -41,6 +41,9 @@ var roleBase = {
             creep.moveTo(Game.getObjectById(creep.memory.sourceTarget));
         },
         source: function (creep) {
+            if (creepsUtils.pickupDroppedResource(creep, false, 1)) {
+                return;
+            }
             const target = Game.getObjectById(creep.memory.sourceTarget);
             if (creep.harvest(target) != OK) {
                 creep.say('💤');
@@ -101,12 +104,9 @@ var roleBase = {
     },
     filler: {
         spawn: function (room, creepName, creepMemory) {
-            const maxEnergy = roomUtils.getMaxEnergy(room);
-            const totalEnergy = roomUtils.getTotalEnergy(room);
-
             const spawn = room.spawns[0];
-
-            const bodyPart = creepsUtils.genbodyFiller(maxEnergy, totalEnergy, true);
+            const bodyConfigs = settings.bodyConfigs.filler;
+            const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, true);
             creepMemory.working = false;
             creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
@@ -127,7 +127,7 @@ var roleBase = {
             }
         },
         source: function (creep) {
-            if (creepsUtils.pickupDroppedResource(creep, true)) {
+            if (creepsUtils.pickupDroppedResource(creep, true, 40)) {
                 return;
             }
 
@@ -162,7 +162,7 @@ var roleBase = {
             const resourceList = Object.keys(creep.store).filter(resource => resource != RESOURCE_ENERGY);
             if (structures && resourceList && resourceList.length > 0) {
                 for (resource in resourceList) {
-                    if (creep.transfer(structures, resource) == ERR_NOT_IN_RANGE) {
+                    if (creep.transfer(structures, resourceList[resource]) == ERR_NOT_IN_RANGE) {
                         creep.moveTo(structures);
                     }
                 }
@@ -174,13 +174,19 @@ var roleBase = {
 
             // 然后查找资源不足的Spawn和Extension
             if (!structures) {
-                const extensionTargets = creep.room.extensions.filter(extension => extension.store.getFreeCapacity(RESOURCE_ENERGY) > 0);
+                const extensionTargets = creep.room.extensions
+                    .filter(extension => extension.store.getFreeCapacity(RESOURCE_ENERGY) > 0);
+                extensionTargets.sort((a, b) => a.pos.getRangeTo(creep) - b.pos.getRangeTo(creep))[0];
+
                 if (extensionTargets && extensionTargets.length > 0) {
                     structures = extensionTargets[0];
                 }
             }
             if (!structures) {
-                const spawnTargets = creep.room.spawns.filter(spawn => spawn.store.getFreeCapacity(RESOURCE_ENERGY) > 0);
+                const spawnTargets = creep.room.spawns
+                    .filter(spawn => spawn.store.getFreeCapacity(RESOURCE_ENERGY) > 0);
+                spawnTargets.sort((a, b) => a.pos.getRangeTo(creep) - b.pos.getRangeTo(creep))[0];
+
                 if (spawnTargets && spawnTargets.length > 0) {
                     structures = spawnTargets[0];
                 }
@@ -214,12 +220,9 @@ var roleBase = {
     },
     builder: {
         spawn: function (room, creepName, creepMemory) {
-            const maxEnergy = roomUtils.getMaxEnergy(room);
-            const totalEnergy = roomUtils.getTotalEnergy(room);
-
             const spawn = room.spawns[0];
-
-            const bodyPart = creepsUtils.genbodyWorker(maxEnergy, totalEnergy, false);
+            const bodyConfigs = settings.bodyConfigs.worker;
+            const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             creepMemory.working = false;
             creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
@@ -274,6 +277,11 @@ var roleBase = {
                     filter: structure => structure.structureType === STRUCTURE_TOWER
                 });
             }
+            if (!buildTarget) {
+                buildTarget = creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES, {
+                    filter: structure => structure.structureType === STRUCTURE_STORAGE
+                });
+            }
             // 其次获取其他建筑
             if (!buildTarget) {
                 buildTarget = creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES);
@@ -291,23 +299,16 @@ var roleBase = {
     },
     upgrader: {
         spawn: function (room, creepName, creepMemory) {
-            const maxEnergy = roomUtils.getMaxEnergy(room);
-            const totalEnergy = roomUtils.getTotalEnergy(room);
-
             const spawn = room.spawns[0];
-
-            const bodyPart = creepsUtils.genbodyWorker(maxEnergy, totalEnergy, false);
+            const bodyConfigs = settings.bodyConfigs.worker;
+            const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             creepMemory.working = false;
             creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         isNeed: function (room) {
-            var maxController = room.controller.level == 8;
-            if (!room.storage) {
-                return !maxController;
-            } else {
-                return !maxController || room.storage.store[RESOURCE_ENERGY] > 5000000;
-            }
+            var maxController = room.controller.level == 8 && room.controller.ticksToDowngrade > 160000;
+            return !maxController;
         },
         work: function (creep) {
             // 调整工作模式
@@ -351,12 +352,9 @@ var roleBase = {
     },
     repairer: {
         spawn: function (room, creepName, creepMemory) {
-            const maxEnergy = roomUtils.getMaxEnergy(room);
-            const totalEnergy = roomUtils.getTotalEnergy(room);
-
             const spawn = room.spawns[0];
-
-            const bodyPart = creepsUtils.genbodyWorker(maxEnergy, totalEnergy, false);
+            const bodyConfigs = settings.bodyConfigs.worker;
+            const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             creepMemory.working = false;
             creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
