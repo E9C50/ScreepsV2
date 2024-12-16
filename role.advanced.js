@@ -110,7 +110,6 @@ var roleAdvanced = {
             if (creep.room.name != creep.memory.targetRoom) {
                 creep.say('🚩');
                 const targetRoomPos = new RoomPosition(25, 25, creep.memory.targetRoom)
-                // creep.moveTo(targetRoomPos);
                 creep.moveTo(targetRoomPos);
                 return;
             }

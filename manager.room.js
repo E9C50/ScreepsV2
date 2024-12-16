@@ -56,24 +56,33 @@ function checkRoomCenter(room) {
  */
 function releaseConstructionSite(room) {
     const roomCenter = room.memory.roomCenter;
-    if (!roomCenter) {
-        return;
-    }
+    if (!roomCenter) return;
 
-    for (index in settings.baseLayout2) {
-        if (index == STRUCTURE_RAMPART && room.controller.level < 3) {
+    // room.find(FIND_CONSTRUCTION_SITES).forEach(constructionSite => {
+    //     constructionSite.remove()
+    // });
+
+    for (level in settings.baseLayout) {
+        if (room.controller.level < level) {
             continue;
         }
-        const construction = settings.baseLayout2[index]
-        for (posIndex in construction) {
-            const posOffset = construction[posIndex];
-            const constructionPosX = roomCenter.x + posOffset.x;
-            const constructionPosY = roomCenter.y + posOffset.y;
-            const constructionPos = new RoomPosition(constructionPosX, constructionPosY, room.name);
-            if (constructionPos.lookFor(LOOK_CONSTRUCTION_SITES).length == 0
-                && (constructionPos.lookFor(LOOK_STRUCTURES).length == 0
-                    || index == STRUCTURE_RAMPART)) {
-                constructionPos.createConstructionSite(index);
+        for (index in settings.baseLayout[level]) {
+            const constructionPosList = settings.baseLayout[level][index];
+            for (posIndex in constructionPosList) {
+                const posOffset = constructionPosList[posIndex];
+                const constructionPosX = roomCenter.x + posOffset[0];
+                const constructionPosY = roomCenter.y + posOffset[1];
+                const constructionPos = new RoomPosition(constructionPosX, constructionPosY, room.name);
+
+                const constructionAtPos = constructionPos.lookFor(LOOK_CONSTRUCTION_SITES);
+                const structureAtPos = constructionPos.lookFor(LOOK_STRUCTURES);
+                const rampartAtPos = structureAtPos.filter(structure => structure.structureType == STRUCTURE_RAMPART);
+
+                if (constructionAtPos.length == 0 && (structureAtPos.length == 0
+                    || (index == STRUCTURE_RAMPART && rampartAtPos.length == 0))) {
+                    constructionPos.createConstructionSite(index);
+                    console.log('createConstructionSite')
+                }
             }
         }
     }
@@ -141,7 +150,7 @@ function showRoomInfo(room) {
     }
 }
 
-function cacheRoomObjects(room) {
+function cacheRoomObjects() {
     Object.defineProperty(Room.prototype, 'sources', {
         get: function () {
             if (!this._sources) {
@@ -158,12 +167,13 @@ function cacheRoomObjects(room) {
     Object.defineProperty(Room.prototype, 'spawns', {
         get: function () {
             if (!this._spawns) {
-                if (!this.memory.spawnIds) {
+                if (!this.memory.spawnIds || this.memory.spawnIds == '') {
                     this.memory.spawnIds = this.find(FIND_STRUCTURES)
                         .filter(structure => structure.structureType == STRUCTURE_SPAWN)
                         .map(structure => structure.id);
                 }
                 this._spawns = this.memory.spawnIds.map(id => Game.getObjectById(id));
+                this._spawns = this._spawns.filter(spawn => spawn.isActive());
             }
             return this._spawns;
         },
@@ -179,6 +189,7 @@ function cacheRoomObjects(room) {
                         .map(structure => structure.id);
                 }
                 this._extensions = this.memory.extensionsIds.map(id => Game.getObjectById(id));
+                this._extensions = this._extensions.filter(extension => extension.isActive());
             }
             return this._extensions;
         },
@@ -195,6 +206,9 @@ function cacheRoomObjects(room) {
                     this.memory.storageId = storageList.length > 0 ? storageList[0].id : null;
                 }
                 this._storage = Game.getObjectById(this.memory.storageId);
+                if (this._storage && !this._storage.isActive()) {
+                    this._storage = null;
+                }
             }
             return this._storage;
         },
@@ -230,15 +244,64 @@ function cacheRoomObjects(room) {
         enumerable: false,
         configurable: true
     });
+    Object.defineProperty(Source.prototype, 'freeSpaceCount', {
+        get: function () {
+            const terrain = this.room.getTerrain();
+
+            if (!Memory.freeSpaceCount) Memory.freeSpaceCount = {};
+            if (this._freeSpaceCount == undefined) {
+                if (Memory.freeSpaceCount[this.id] == undefined) {
+                    let freeSpaceCount = 0;
+                    [this.pos.x - 1, this.pos.x, this.pos.x + 1].forEach(x => {
+                        [this.pos.y - 1, this.pos.y, this.pos.y + 1].forEach(y => {
+                            if (terrain.get(x, y) != TERRAIN_MASK_WALL)
+                                freeSpaceCount++;
+                        }, this);
+                    }, this);
+                    Memory.freeSpaceCount[this.id] = freeSpaceCount;
+                }
+                this._freeSpaceCount = Memory.freeSpaceCount[this.id];
+            }
+            return this._freeSpaceCount;
+        },
+        enumerable: false,
+        configurable: true
+    });
+
+    Object.defineProperty(Mineral.prototype, 'freeSpaceCount', {
+        get: function () {
+            const terrain = this.room.getTerrain();
+
+            if (!Memory.freeSpaceCount) Memory.freeSpaceCount = {};
+            if (this._freeSpaceCount == undefined) {
+                if (Memory.freeSpaceCount[this.id] == undefined) {
+                    let freeSpaceCount = 0;
+                    [this.pos.x - 1, this.pos.x, this.pos.x + 1].forEach(x => {
+                        [this.pos.y - 1, this.pos.y, this.pos.y + 1].forEach(y => {
+                            if (terrain.get(x, y) != TERRAIN_MASK_WALL)
+                                freeSpaceCount++;
+                        }, this);
+                    }, this);
+                    Memory.freeSpaceCount[this.id] = freeSpaceCount;
+                }
+                this._freeSpaceCount = Memory.freeSpaceCount[this.id];
+            }
+            return this._freeSpaceCount;
+        },
+        enumerable: false,
+        configurable: true
+    });
 }
 
 var roomManager = {
     run: function () {
+        // 加载并缓存房间信息
+        cacheRoomObjects();
+
         for (roomName in Game.rooms) {
             var room = Game.rooms[roomName];
 
-            // 加载并缓存房间信息
-            cacheRoomObjects(room);
+            if (!room.controller.my) continue;
 
             // 检查并开启安全模式
             safeModeChecker(room);

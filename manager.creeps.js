@@ -53,7 +53,7 @@ function releaseCreepConfig(room) {
 
     // 挖矿
     room.sources.forEach(source => {
-        var canHarvesterPos = roomUtils.getCanHarvesterPos(source.pos);
+        var canHarvesterPos = source.freeSpaceCount;
         canHarvesterPos = Math.min(canHarvesterPos, 2);
         for (i = 0; i < canHarvesterPos; i++) {
             const configName = room.name + '_Harvester_' + source.id + '_' + i;
@@ -165,8 +165,8 @@ function releaseCreepConfig(room) {
  * @param {*} room 
  */
 function autoSpawnCreeps(room) {
-    const harvester = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'harvester');
-    const fillers = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'filler');
+    const harvester = _.filter(Game.creeps, (creep) => creep.memory.room == room.name && creep.memory.role == 'harvester');
+    const fillers = _.filter(Game.creeps, (creep) => creep.memory.room == room.name && creep.memory.role == 'filler');
 
     if (harvester.length > 0 && fillers.length == 0) {
         var fillerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
@@ -287,12 +287,15 @@ var creepsManager = {
 
         for (roomName in Game.rooms) {
             const room = Game.rooms[roomName];
+            if (!room.controller.my) continue;
+            
             // 检查房间信息，发布Creep需求
             releaseCreepConfig(room);
 
             // 根据CreepConfig生成Creep
             autoSpawnCreeps(room);
 
+            // 打印房间日志信息
             showCount(room);
         }
 

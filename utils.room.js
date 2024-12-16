@@ -42,7 +42,7 @@ var roomUtils = {
     getTotalEnergy: function (room) {
         const spawns = room.spawns;
 
-        const extensions = room.extensions.filter(extension => extension.isActive());
+        const extensions = room.extensions;
 
         let totalEnergy = 0;
         spawns.forEach(spawn => totalEnergy += spawn.store[RESOURCE_ENERGY]);
@@ -55,7 +55,7 @@ var roomUtils = {
      * @param {*} room 
      */
     getMaxEnergy: function (room) {
-        var extensionCount = room.extensions.filter(extension => extension.isActive()).length;
+        var extensionCount = room.extensions.length;
         var maxEnergy = extensionCount * 50 + 300;
         return maxEnergy;
     },

@@ -2,6 +2,7 @@ var linkManager = {
     run: function () {
         for (roomName in Game.rooms) {
             const room = Game.rooms[roomName]
+            if (!room.controller.my) continue;
 
             const links = room.find(FIND_STRUCTURES, {
                 filter: structure => structure.structureType === STRUCTURE_LINK

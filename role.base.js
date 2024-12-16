@@ -174,13 +174,16 @@ var roleBase = {
 
             // 然后查找资源不足的Spawn和Extension
             if (!structures) {
-                structures = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                    filter: structure => {
-                        return ((structure.structureType == STRUCTURE_EXTENSION && structure.isActive())
-                            || structure.structureType == STRUCTURE_SPAWN)
-                            && structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
-                    }
-                });
+                const extensionTargets = creep.room.extensions.filter(extension => extension.store.getFreeCapacity(RESOURCE_ENERGY) > 0);
+                if (extensionTargets && extensionTargets.length > 0) {
+                    structures = extensionTargets[0];
+                }
+            }
+            if (!structures) {
+                const spawnTargets = creep.room.spawns.filter(spawn => spawn.store.getFreeCapacity(RESOURCE_ENERGY) > 0);
+                if (spawnTargets && spawnTargets.length > 0) {
+                    structures = spawnTargets[0];
+                }
             }
 
             // 其次查找Tower（若为战斗模式，强制优先Tower） 
