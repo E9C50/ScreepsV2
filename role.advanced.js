@@ -1,19 +1,20 @@
-const roomUtils = require("utils.room");
 const creepsUtils = require("utils.creeps");
 const roleBase = require("role.base");
 const settings = require("base.settings");
 
 var roleAdvanced = {
-    remoteHarvester: {
+    rHarvester: {
         spawn: function (room, creepName, creepMemory) {
             const spawn = room.spawns[0];
             const harvesters = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'harvester');
-            const bodyConfigs = settings.bodyConfigs.remoteHarvester;
+            const bodyConfigs = settings.bodyConfigs.rHarvester;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, harvesters.length == 0);
             creepMemory.working = false;
             creepMemory.room = room.name;
 
-            if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
+            if (spawn && Game.getObjectById(creepMemory['sourceTarget'])) {
+                spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
+            }
         },
         work: function (creep) {
             // 调整工作模式
@@ -26,8 +27,10 @@ var roleAdvanced = {
 
             if (creep.memory.working) {
                 this.source(creep);
+                creep.say('⛏️');
             } else {
                 this.target(creep);
+                creep.say('⏬');
             }
         },
         source: function (creep) {
@@ -41,6 +44,21 @@ var roleAdvanced = {
         },
         target: function (creep) {
             if (creep.room.name != creep.memory.room) {
+                const constructionSites = creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES);
+                if (constructionSites) {
+                    if (creep.build(constructionSites) == ERR_NOT_IN_RANGE) creep.moveTo(constructionSites);
+                    return;
+                }
+
+                const needRepair = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+                    filter: structure => structure.structureType == STRUCTURE_ROAD
+                        && structure.hits < structure.hitsMax
+                });
+                if (needRepair) {
+                    if (creep.repair(needRepair) == ERR_NOT_IN_RANGE) creep.moveTo(needRepair);
+                    return;
+                }
+
                 creep.moveTo(new RoomPosition(25, 25, creep.memory.room));
                 return;
             }
@@ -58,7 +76,7 @@ var roleAdvanced = {
     miner: {
         spawn: function (room, creepName, creepMemory) {
             const spawn = room.spawns[0];
-            const bodyConfigs = settings.bodyConfigs.remoteHarvester;
+            const bodyConfigs = settings.bodyConfigs.rHarvester;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             creepMemory.working = false;
             creepMemory.room = room.name;
@@ -67,7 +85,7 @@ var roleAdvanced = {
         isNeed: function (room) {
             const mineral = room.mineral;
             const target = room.storage;
-            return target.store[mineral.mineralType] <= 1000000
+            return target.store[mineral.mineralType] <= 100000
         },
         work: function (creep) {
             // 调整工作模式
@@ -127,10 +145,6 @@ var roleAdvanced = {
                 return;
             }
 
-            const controllerLink = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: structure => structure.id == creep.room.memory.controllerLink
-            });
-
             if (creep.room.memory.centerLinkSentMode) {
                 if (creep.store[RESOURCE_ENERGY] > 0) {
                     creep.transfer(centerLink, RESOURCE_ENERGY);
@@ -147,11 +161,11 @@ var roleAdvanced = {
         }
     },
     claimer: {
-        spawn: function (room, creepMemory) {
+        spawn: function (room, creepName, creepMemory) {
             const spawn = room.spawns[0];
             const bodyConfigs = settings.bodyConfigs.claimer;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
-            const creepName = 'Claimer_' + room.name + '_' + creepMemory.targetRoom;
+            // const creepName = 'Claimer_' + room.name + '_' + creepMemory.targetRoom;
             creepMemory.working = false;
             creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
@@ -189,7 +203,7 @@ var roleAdvanced = {
 
             const roomSpawn = targetRoom.spawns[0];
             if (roomSpawn) {
-                delete Memory.claiming[targetRoom.name];
+                delete Memory.jobs.claiming[targetRoom.name];
                 const sourceTarget = targetRoom.sources[0];
                 creep.memory.sourceTarget = sourceTarget.id;
                 roleBase.harvester.work(creep);
@@ -233,10 +247,11 @@ var roleAdvanced = {
         }
     },
     reserver: {
-        spawn: function (room, creepMemory) {
+        spawn: function (room, creepName, creepMemory) {
             const spawn = room.spawns[0];
-            const bodyPart = [CLAIM, CLAIM, MOVE, MOVE];
-            const creepName = 'Reserver_' + room.name + '_' + creepMemory.targetRoom;
+            const bodyConfigs = settings.bodyConfigs.reserver;
+            const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
+            // const creepName = 'Reserver_' + room.name + '_' + creepMemory.targetRoom;
             creepMemory.working = false;
             creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });

@@ -1,12 +1,9 @@
 const roleBase = require('role.base');
 const roleAdvanced = require('role.advanced');
-const roomUtils = require("utils.room");
 
 function creepsWork(creep) {
     // 还没出生就啥都不干
-    if (creep.spawning) {
-        return;
-    }
+    if (creep.spawning) return;
 
     // 检查 creep 内存中的角色是否存在
     if (!creep.memory.role) {
@@ -14,281 +11,238 @@ function creepsWork(creep) {
         return;
     }
 
-    switch (creep.memory.role) {
-        case 'harvester':
-            roleBase.harvester.work(creep);
-            break;
-        case 'filler':
-            roleBase.filler.work(creep);
-            break;
-        case 'upgrader':
-            roleBase.upgrader.work(creep);
-            break;
-        case 'builder':
-            roleBase.builder.work(creep);
-            break;
-        case 'repairer':
-            roleBase.repairer.work(creep);
-            break;
-        case 'manager':
-            roleAdvanced.manager.work(creep);
-            break;
-        case 'miner':
-            roleAdvanced.miner.work(creep);
-            break;
-        case 'claimer':
-            roleAdvanced.claimer.work(creep);
-            break;
-        case 'reserver':
-            roleAdvanced.reserver.work(creep);
-            break;
-        case 'remoteHarvester':
-            roleAdvanced.remoteHarvester.work(creep);
-            break;
+    const role = creep.memory.role;
+    if (roleBase[role]) roleBase[role].work(creep);
+    if (roleAdvanced[role]) roleAdvanced[role].work(creep);
+}
+
+/**
+ * 添加需求配置
+ * @param {*} roomName 
+ * @param {*} role 
+ * @param {*} roleName 
+ * @param {*} sourceId 
+ * @param {*} sourceIndex 
+ */
+function addCreepConfig(roomName, role, roleName, sourceId, sourceIndex) {
+    const room = Game.rooms[roomName];
+    var configName = roomName + '_' + roleName;
+    if (sourceId) configName += ('_' + sourceId);
+    if (sourceIndex) configName += ('_' + sourceIndex);
+
+    if ((roleBase[role] && (typeof roleBase[role].isNeed != 'function' || roleBase[role].isNeed(room)))
+        || (roleAdvanced[role] && (typeof roleAdvanced[role].isNeed != 'function' || roleAdvanced[role].isNeed(room)))) {
+        Memory.creepConfig[roomName][configName] = { role: role, room: roomName };
+        if (sourceId) Memory.creepConfig[roomName][configName]['sourceTarget'] = sourceId;
     }
+}
+
+/**
+ * 生产Creep
+ * @param {*} room 
+ * @param {*} role 
+ * @returns 
+ */
+function spawnCreep(room, spawnObj, role) {
+    const spawnConfigs = Object.entries(Memory.creepConfig[room.name]).filter(
+        ([configName, config]) => config.role == role && !Game.creeps[configName]);
+    if (spawnConfigs && spawnConfigs.length > 0) {
+        spawnObj.spawn(room, spawnConfigs[0][0], spawnConfigs[0][1]);
+        return true;
+    }
+    return false;
 }
 
 
 /**
  * 检查房间信息，发布对应Creep需求
- * @param {*} room 
  */
-function releaseCreepConfig(room) {
-    if (!Memory.creepConfig) Memory.creepConfig = {};
-    Memory.creepConfig[room.name] = {};
+function releaseCreepConfig() {
+    for (roomName in Game.rooms) {
+        const room = Game.rooms[roomName];
+        if (!room.controller.my) continue;
 
-    // 挖矿
-    room.sources.forEach(source => {
-        var canHarvesterPos = source.freeSpaceCount;
-        canHarvesterPos = Math.min(canHarvesterPos, 2);
-        if (room.controller.level > 3) canHarvesterPos = 1;
-        for (i = 0; i < canHarvesterPos; i++) {
-            const configName = room.name + '_Harvester_' + source.id + '_' + i;
-            Memory.creepConfig[room.name][configName] = {
-                role: 'harvester',
-                room: room.name,
-                sourceTarget: source.id,
+        // 初始化配置列表
+        if (!Memory.creepConfig) Memory.creepConfig = {};
+        Memory.creepConfig[room.name] = {};
+
+        // 前三级每个矿2个矿工，三级之后每个矿一个
+        room.sources.forEach(source => {
+            var canHarvesterPos = source.freeSpaceCount;
+            canHarvesterPos = Math.min(canHarvesterPos, 2);
+            if (room.controller.level > 3) canHarvesterPos = 1;
+            for (i = 0; i < canHarvesterPos; i++) {
+                addCreepConfig(room.name, 'harvester', 'Harvester', source.id, i);
+            }
+        });
+
+        // 如果有中央Link，则发布中央搬运者
+        if (room.memory.centerLink) addCreepConfig(room.name, 'manager', 'Manager');
+
+        // 如果有矿机，则发布一个元素矿矿工
+        if (room.extractor) addCreepConfig(room.name, 'miner', 'Miner', room.mineral.id);
+
+        // 如果有Storage，发布一个专属Filler
+        var storage = room.storage;
+        if (storage) addCreepConfig(room.name, 'filler', 'FillerStorage', storage.id);
+
+        // 如果有Storage，则每100000资源发布一个对应的Upgrader、Builder、Repairer
+        if (storage) {
+            var workCount = parseInt(storage.store[RESOURCE_ENERGY] / 100000) + 1;
+            if (room.controller.level == 8) workCount = 1;
+
+            for (i = 0; i < workCount; i++) {
+                addCreepConfig(room.name, 'upgrader', 'UpgraderStorage', storage.id, i);
+                addCreepConfig(room.name, 'builder', 'BuilderStorage', storage.id, i);
+                addCreepConfig(room.name, 'repairer', 'RepairerStorage', storage.id, i);
             }
         }
-    });
 
-    // 如果有，则发布一个矿工
-    if (room.extractor) {
-        const mineral = room.mineral;
-        const minerConfigName = room.name + '_Miner_' + mineral.id;
-        Memory.creepConfig[room.name][minerConfigName] = {
-            role: 'miner',
-            room: room.name,
-            sourceTarget: mineral.id,
-        };
+        // 初期 Container，每个 Container 发布 Builder*1，Filler*1，Upgrader*1，repairer*1
+        room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_CONTAINER })
+            .forEach(structure => {
+                addCreepConfig(room.name, 'filler', 'FillerContainer', structure.id);
+                addCreepConfig(room.name, 'upgrader', 'UpgraderContainer', structure.id);
+                addCreepConfig(room.name, 'builder', 'BuilderContainer', structure.id);
+                addCreepConfig(room.name, 'repairer', 'RepairerContainer', structure.id);
+            });
     }
-
-
-    // 如果有Storage，发布一个专属Filler，并且每5w多一个upgrader
-    var storage = room.storage;
-    if (storage) {
-        const fillerStorageConfigName = room.name + '_FillerStorage_' + storage.id;
-        Memory.creepConfig[room.name][fillerStorageConfigName] = {
-            role: 'filler',
-            room: room.name,
-            sourceTarget: storage.id,
-        };
-
-        var workCount = parseInt(storage.store[RESOURCE_ENERGY] / 100000);
-        workCount += 1;
-
-        if (room.controller.level == 8) {
-            workCount = 1;
-        }
-        for (i = 0; i < workCount; i++) {
-            const upgraderConfigName = room.name + '_UpgraderStorage_' + storage.id + '_' + i;
-            Memory.creepConfig[room.name][upgraderConfigName] = {
-                role: 'upgrader',
-                room: room.name,
-                sourceTarget: storage.id,
-            };
-
-            const builderConfigName = room.name + '_BuilderStorage_' + storage.id + '_' + i;
-            Memory.creepConfig[room.name][builderConfigName] = {
-                role: 'builder',
-                room: room.name,
-                sourceTarget: storage.id,
-            };
-
-            const repairerConfigName = room.name + '_RepairerStorage_' + storage.id + '_' + i;
-            Memory.creepConfig[room.name][repairerConfigName] = {
-                role: 'repairer',
-                room: room.name,
-                sourceTarget: storage.id,
-            };
-        }
-    }
-
-    if (room.memory.centerLink) {
-        const managerConfigName = room.name + '_Manager';
-        Memory.creepConfig[room.name][managerConfigName] = {
-            room: room.name,
-            role: 'manager'
-        };
-    }
-
-    // 初期 Container，每个 Container 发布 Builder*1，Filler*1，Upgrader*1，repairer*1
-    // 如果有 Storage，Builder，Upgrader，repairer 只会绑定 Storage
-    room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_CONTAINER })
-        .forEach(structure => {
-            const fillerConfigName = room.name + '_FillerContainer_' + structure.id;
-            Memory.creepConfig[room.name][fillerConfigName] = {
-                role: 'filler',
-                room: room.name,
-                sourceTarget: structure.id,
-            };
-
-            const sourceId = storage ? storage.id : structure.id;
-            const builderConfigName = room.name + '_BuilderContainer_' + sourceId;
-            Memory.creepConfig[room.name][builderConfigName] = {
-                role: 'builder',
-                room: room.name,
-                sourceTarget: sourceId,
-            };
-
-            const upgraderConfigName = room.name + '_UpgraderContainer_' + sourceId;
-            Memory.creepConfig[room.name][upgraderConfigName] = {
-                role: 'upgrader',
-                room: room.name,
-                sourceTarget: sourceId,
-            };
-
-            const repairerConfigName = room.name + '_RepairerContainer_' + sourceId;
-            Memory.creepConfig[room.name][repairerConfigName] = {
-                role: 'repairer',
-                room: room.name,
-                sourceTarget: sourceId,
-            };
-        });
 }
 
 /**
  * 根据CreepConfig生成Creep
- * @param {*} room 
  */
-function autoSpawnCreeps(room) {
-    const harvester = _.filter(Game.creeps, (creep) => creep.memory.room == room.name && creep.memory.role == 'harvester');
-    const fillers = _.filter(Game.creeps, (creep) => creep.memory.room == room.name && creep.memory.role == 'filler');
-    const managers = _.filter(Game.creeps, (creep) => creep.memory.room == room.name && creep.memory.role == 'manager');
+function autoSpawnCreeps() {
+    for (roomName in Game.rooms) {
+        const room = Game.rooms[roomName];
+        if (!room.controller.my) continue;
 
-    var managerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
-        ([configName, config]) => config.role == 'manager' && !Game.creeps[configName])
-    if (harvester.length > 0 && managers.length == 0 && managerSpawn && managerSpawn.length > 0) {
-        roleAdvanced.manager.spawn(room, managerSpawn[0][0], managerSpawn[0][1]);
-        return;
-    }
+        const harvester = _.filter(Game.creeps, (creep) => creep.memory.room == room.name && creep.memory.role == 'harvester');
+        const fillers = _.filter(Game.creeps, (creep) => creep.memory.room == room.name && creep.memory.role == 'filler');
+        const managers = _.filter(Game.creeps, (creep) => creep.memory.room == room.name && creep.memory.role == 'manager');
 
-    if (harvester.length > 0 && fillers.length == 0) {
-        var fillerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
-            ([configName, config]) => config.role == 'filler' && !Game.creeps[configName])
-
-        if (fillerSpawn && fillerSpawn.length > 0) {
-            roleBase.filler.spawn(room, fillerSpawn[0][0], fillerSpawn[0][1]);
-            return;
+        if (harvester.length > 0 && managers.length == 0) {
+            if (spawnCreep(room, roleAdvanced.manager, 'manager')) continue;
         }
-    }
 
-    var harvesterSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
-        ([configName, config]) => config.role == 'harvester' && !Game.creeps[configName])
+        if (harvester.length > 0 && fillers.length == 0) {
+            if (spawnCreep(room, roleBase.filler, 'filler')) continue;
+        }
 
-    if (harvesterSpawn && harvesterSpawn.length > 0) {
-        roleBase.harvester.spawn(room, harvesterSpawn[0][0], harvesterSpawn[0][1]);
-        return;
-    }
+        if (spawnCreep(room, roleBase.harvester, 'harvester')) continue;
+        if (spawnCreep(room, roleAdvanced.manager, 'manager')) continue;
+        if (spawnCreep(room, roleBase.filler, 'filler')) continue;
 
-    var managerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
-        ([configName, config]) => config.role == 'manager' && !Game.creeps[configName])
+        if (spawnCreep(room, roleBase.builder, 'builder')) continue;
+        if (spawnCreep(room, roleBase.upgrader, 'upgrader')) continue;
+        if (spawnCreep(room, roleBase.repairer, 'repairer')) continue;
 
-    if (managerSpawn && managerSpawn.length > 0) {
-        roleAdvanced.manager.spawn(room, managerSpawn[0][0], managerSpawn[0][1]);
-        return;
-    }
+        if (spawnCreep(room, roleAdvanced.miner, 'miner')) continue;
 
-    var fillerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
-        ([configName, config]) => config.role == 'filler' && !Game.creeps[configName])
-
-    if (fillerSpawn && fillerSpawn.length > 0) {
-        roleBase.filler.spawn(room, fillerSpawn[0][0], fillerSpawn[0][1]);
-        return;
-    }
-
-    var builderSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
-        ([configName, config]) => config.role == 'builder' && !Game.creeps[configName])
-
-    if (builderSpawn && builderSpawn.length > 0 && roleBase.builder.isNeed(room)) {
-        roleBase.builder.spawn(room, builderSpawn[0][0], builderSpawn[0][1]);
-        return;
-    }
-
-    var upgraderSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
-        ([configName, config]) => config.role == 'upgrader' && !Game.creeps[configName])
-
-    if (upgraderSpawn && upgraderSpawn.length > 0 && roleBase.upgrader.isNeed(room)) {
-        roleBase.upgrader.spawn(room, upgraderSpawn[0][0], upgraderSpawn[0][1]);
-        return;
-    }
-
-    var repairerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
-        ([configName, config]) => config.role == 'repairer' && !Game.creeps[configName])
-
-    if (repairerSpawn && repairerSpawn.length > 0) {
-        roleBase.repairer.spawn(room, repairerSpawn[0][0], repairerSpawn[0][1]);
-        return;
-    }
-
-    var minerSpawn = Object.entries(Memory.creepConfig[room.name]).filter(
-        ([configName, config]) => config.role == 'miner' && !Game.creeps[configName])
-
-    if (minerSpawn && minerSpawn.length > 0 && roleAdvanced.miner.isNeed(room)) {
-        roleAdvanced.miner.spawn(room, minerSpawn[0][0], minerSpawn[0][1]);
-        return;
+        if (spawnCreep(room, roleAdvanced.claimer, 'claimer')) continue;
+        if (spawnCreep(room, roleAdvanced.reserver, 'reserver')) continue;
+        if (spawnCreep(room, roleAdvanced.rHarvester, 'rHarvester')) continue;
     }
 }
 
-function showCount(room) {
-    let roleCounts = { 'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0, 'miner': 0 };
-    for (let creepName in Game.creeps) {
-        let creep = Game.creeps[creepName];
-        let role = creep.memory.role;
-        let creepRoom = creep.memory.room;
+/**
+ * 处理外部工作
+ */
+function releaseRemoteCreepConfig() {
+    if (!Memory.jobs) Memory.jobs = {};
 
-        if (role && creepRoom == room.name) {
-            if (!roleCounts[role]) {
-                roleCounts[role] = 0;
-            }
-            roleCounts[role]++;
+    for (claiming in Memory.jobs.claiming) {
+        const targetRoom = claiming;
+        const sourceRoom = Memory.jobs.claiming[targetRoom]
+        const creepName = 'Claimer_' + sourceRoom + '_' + targetRoom;
+
+        Memory.creepConfig[sourceRoom][creepName] = {
+            'room': sourceRoom,
+            'role': 'claimer',
+            'targetRoom': targetRoom
         }
     }
 
-    let roleMaxCounts = { 'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0, 'miner': 0 };
-    for (let creepName in Memory.creepConfig[room.name]) {
-        let creep = Memory.creepConfig[room.name][creepName];
-        let role = creep.role;
+    for (reserving in Memory.jobs.reserving) {
+        const targetRoom = reserving;
+        const sourceRoom = Memory.jobs.reserving[targetRoom]
+        const creepName = 'Reserver_' + sourceRoom + '_' + targetRoom;
 
-        if (role) {
-            if (!roleMaxCounts[role]) {
-                roleMaxCounts[role] = 0;
-            }
-            roleMaxCounts[role]++;
+        Memory.creepConfig[sourceRoom][creepName] = {
+            'room': sourceRoom,
+            'role': 'reserver',
+            'targetRoom': targetRoom
         }
     }
 
-    delete roleCounts['claimer'];
-    delete roleCounts['reserver'];
-    delete roleCounts['remoteHarvester'];
+    for (remoteHarvest in Memory.jobs.remoteHarvest) {
+        const sourceId = remoteHarvest;
+        const sourceRoom = Memory.jobs.remoteHarvest[sourceId];
 
-    const roomCenter = room.controller.pos;
-    if (roomCenter) {
-        var index = roomCenter.y - 2;
-        for (role in roleCounts) {
-            room.visual.text(role, roomCenter.x + 2, index, { align: 'left' });
-            room.visual.text(roleCounts[role] + '/' + roleMaxCounts[role], roomCenter.x + 6, index, { align: 'center' });
-            index++;
+        const memory = {
+            'room': sourceRoom,
+            'role': 'rHarvester',
+            'sourceTarget': sourceId,
+        }
+
+        const creepName1 = 'RemoteHarvester_' + sourceRoom + '_' + sourceId + '_1';
+        const creepName2 = 'RemoteHarvester_' + sourceRoom + '_' + sourceId + '_2';
+
+        Memory.creepConfig[sourceRoom][creepName1] = memory;
+        Memory.creepConfig[sourceRoom][creepName2] = memory;
+    }
+}
+
+/**
+ * 发布远程房间Creep需求
+ */
+function showCount() {
+    for (roomName in Game.rooms) {
+        const room = Game.rooms[roomName];
+        if (!room.controller.my) continue;
+        //  统计当前数量
+        let roleCounts = { 'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0, 'miner': 0, 'reserver': 0, 'rHarvester': 0 };
+        for (let creepName in Game.creeps) {
+            let creep = Game.creeps[creepName];
+            let role = creep.memory.role;
+            let creepRoom = creep.memory.room;
+
+            if (role && creepRoom == room.name) {
+                if (!roleCounts[role]) {
+                    roleCounts[role] = 0;
+                }
+                roleCounts[role]++;
+            }
+        }
+
+        //  统计最大数量
+        let roleMaxCounts = { 'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0, 'miner': 0, 'reserver': 0, 'rHarvester': 0 };
+        for (let creepName in Memory.creepConfig[room.name]) {
+            let creep = Memory.creepConfig[room.name][creepName];
+            let role = creep.role;
+
+            if (role) {
+                if (!roleMaxCounts[role]) {
+                    roleMaxCounts[role] = 0;
+                }
+                roleMaxCounts[role]++;
+            }
+        }
+
+        // 去除一些不需要统计的角色
+        delete roleCounts['claimer'];
+
+        // 显示统计信息
+        const roomCenter = room.controller.pos;
+        if (roomCenter) {
+            var index = roomCenter.y - 4;
+            for (role in roleCounts) {
+                const checkText = (roleCounts[role] == roleMaxCounts[role]) ? ' ✅' : (roleCounts[role] > roleMaxCounts[role]) ? ' ⏳' : ' ❌';
+                const countText = roleCounts[role] + '/' + roleMaxCounts[role] + checkText;
+                room.visual.text(role, roomCenter.x + 2, index, { align: 'left' });
+                room.visual.text(countText, roomCenter.x + 7, index, { align: 'center' });
+                index++;
+            }
         }
     }
 }
@@ -302,19 +256,17 @@ var creepsManager = {
             }
         }
 
-        for (roomName in Game.rooms) {
-            const room = Game.rooms[roomName];
-            if (!room.controller.my) continue;
+        // 检查房间信息，发布Creep需求
+        releaseCreepConfig();
 
-            // 检查房间信息，发布Creep需求
-            releaseCreepConfig(room);
+        // 发布远程房间Creep需求
+        releaseRemoteCreepConfig();
 
-            // 根据CreepConfig生成Creep
-            autoSpawnCreeps(room);
+        // 根据CreepConfig生成Creep
+        autoSpawnCreeps();
 
-            // 打印房间日志信息
-            showCount(room);
-        }
+        // 打印房间日志信息
+        showCount();
 
         // 工作管理器
         Object.values(Game.creeps).forEach(creep => creepsWork(creep));

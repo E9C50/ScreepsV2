@@ -2,7 +2,6 @@ const roomUtils = require("utils.room");
 const creepsUtils = require("utils.creeps");
 const settings = require("base.settings");
 
-
 var roleBase = {
     harvester: {
         spawn: function (room, creepName, creepMemory) {
@@ -122,8 +121,10 @@ var roleBase = {
 
             if (creep.memory.working) {
                 this.target(creep);
+                creep.say('⏬');
             } else {
                 this.source(creep);
+                creep.say('🔄️');
             }
         },
         source: function (creep) {
@@ -176,7 +177,7 @@ var roleBase = {
             if (!structures) {
                 const extensionTargets = creep.room.extensions
                     .filter(extension => extension.store.getFreeCapacity(RESOURCE_ENERGY) > 0);
-                extensionTargets.sort((a, b) => a.pos.getRangeTo(creep) - b.pos.getRangeTo(creep))[0];
+                extensionTargets.sort((a, b) => a.pos.getRangeTo(creep) - b.pos.getRangeTo(creep));
 
                 if (extensionTargets && extensionTargets.length > 0) {
                     structures = extensionTargets[0];
@@ -228,9 +229,7 @@ var roleBase = {
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         isNeed: function (room) {
-            var constructionSiteCount = room.find(FIND_CONSTRUCTION_SITES).length;
-            var needBuilder = constructionSiteCount > 0;
-            return needBuilder;
+            return room.find(FIND_CONSTRUCTION_SITES).length > 0;
         },
         work: function (creep) {
             // 调整工作模式
@@ -243,8 +242,10 @@ var roleBase = {
 
             if (creep.memory.working) {
                 this.target(creep);
+                creep.say('🔨');
             } else {
                 this.source(creep);
+                creep.say('🔄️');
             }
         },
         source: function (creep) {
@@ -321,8 +322,10 @@ var roleBase = {
 
             if (creep.memory.working) {
                 this.target(creep);
+                creep.say('⏫');
             } else {
                 this.source(creep);
+                creep.say('🔄️');
             }
         },
         source: function (creep) {
@@ -337,6 +340,7 @@ var roleBase = {
 
             if (creep.room.memory.controllerLink) {
                 target = Game.getObjectById(creep.room.memory.controllerLink);
+                if (!target) delete creep.room.memory.controllerLink;
             }
 
             const withdrawResult = creep.withdraw(target, RESOURCE_ENERGY);
@@ -359,6 +363,9 @@ var roleBase = {
             creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
+        isNeed: function (room) {
+            return room.find(FIND_MY_STRUCTURES, { filter: structure => structure.hits / structure.hitsMax < 0.5 }).length > 0;
+        },
         work: function (creep) {
             // 调整工作模式
             if (creep.memory.working && creep.store[RESOURCE_ENERGY] == 0) {
@@ -370,8 +377,10 @@ var roleBase = {
 
             if (creep.memory.working) {
                 this.target(creep);
+                creep.say('🛠️');
             } else {
                 this.source(creep);
+                creep.say('🔄️');
             }
         },
         source: function (creep) {

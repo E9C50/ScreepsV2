@@ -34,8 +34,7 @@ var linkManager = {
             for (linkIndex in links) {
                 var link = links[linkIndex];
                 for (sourceIndex in room.sources) {
-                    if (link.pos.inRangeTo(room.sources[sourceIndex].pos, 3)
-                        && link.store.getFreeCapacity(RESOURCE_ENERGY) == 0) {
+                    if (link.pos.inRangeTo(room.sources[sourceIndex].pos, 3) && link.cooldown == 0) {
                         link.transferEnergy(centerLink);
                     }
                 }

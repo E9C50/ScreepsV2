@@ -99,81 +99,6 @@ function releaseConstructionSite(room) {
 }
 
 /**
- * 处理正在占领中的房间
- */
-function processRemoteWork() {
-    if (!Memory.outWork) Memory.outWork = {};
-    for (claiming in Memory.outWork.claiming) {
-        const targetRoom = claiming;
-        const sourceRoom = Memory.outWork.claiming[targetRoom]
-        const creepName = 'Claimer_' + sourceRoom + '_' + targetRoom;
-
-        if (!Game.creeps[creepName]) {
-            claimRoom(sourceRoom, targetRoom);
-        }
-    }
-
-    for (reserving in Memory.outWork.reserving) {
-        const targetRoom = reserving;
-        const sourceRoom = Memory.outWork.reserving[targetRoom]
-        const creepName = 'Reserver_' + sourceRoom + '_' + targetRoom;
-
-        if (!Game.creeps[creepName]) {
-            reserverRoom(sourceRoom, targetRoom);
-        }
-    }
-
-    for (remoteHarvest in Memory.outWork.remoteHarvest) {
-        const sourceId = remoteHarvest;
-        const sourceRoom = Memory.outWork.remoteHarvest[sourceId]
-        const room = Game.rooms[sourceRoom];
-        const memory = {
-            'room': room.name,
-            'role': 'remoteHarvester',
-            'sourceTarget': sourceId,
-        }
-
-        const creepName1 = 'RemoteHarvester_' + sourceRoom + '_' + sourceId + '_1';
-        if (!Game.creeps[creepName1]) {
-            roleAdvanced.remoteHarvester.spawn(room, creepName1, memory);
-        }
-        const creepName2 = 'RemoteHarvester_' + sourceRoom + '_' + sourceId + '_2';
-        if (!Game.creeps[creepName2]) {
-            roleAdvanced.remoteHarvester.spawn(room, creepName2, memory);
-        }
-    }
-
-}
-
-/**
- * 占领房间
- * @param {*} sourceRoom 
- * @param {*} targetRoom 
- */
-function claimRoom(sourceRoom, targetRoom) {
-    const room = Game.rooms[sourceRoom];
-    const memory = {
-        'role': 'claimer',
-        'targetRoom': targetRoom
-    }
-    roleAdvanced.claimer.spawn(room, memory);
-}
-
-/**
- * 预定房间
- * @param {*} sourceRoom 
- * @param {*} targetRoom 
- */
-function reserverRoom(sourceRoom, targetRoom) {
-    const room = Game.rooms[sourceRoom];
-    const memory = {
-        'role': 'reserver',
-        'targetRoom': targetRoom
-    }
-    roleAdvanced.reserver.spawn(room, memory);
-}
-
-/**
  * 展示房间信息
  * @param {*} room 
  */
@@ -228,7 +153,8 @@ function cacheRoomObjects() {
                         .map(structure => structure.id);
                 }
                 this._spawns = this.memory.spawnIds.map(id => Game.getObjectById(id));
-                this._spawns = this._spawns.filter(spawn => spawn.isActive());
+                this._spawns = this._spawns.filter(spawn => spawn && spawn.isActive());
+                if (!this._spawns) delete this.memory.spawnIds;
             }
             return this._spawns;
         },
@@ -244,9 +170,27 @@ function cacheRoomObjects() {
                         .map(structure => structure.id);
                 }
                 this._extensions = this.memory.extensionsIds.map(id => Game.getObjectById(id));
-                this._extensions = this._extensions.filter(extension => extension.isActive());
+                this._extensions = this._extensions.filter(extension => extension && extension.isActive());
+                if (!this._extensions) delete this.memory.extensionsIds;
             }
             return this._extensions;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Room.prototype, 'containers', {
+        get: function () {
+            if (!this._containers) {
+                if (!this.memory.containerIds || this.memory.containerIds.length == 0 || Game.time % 10 == 0) {
+                    this.memory.containerIds = this.find(FIND_STRUCTURES)
+                        .filter(structure => structure.structureType == STRUCTURE_CONTAINER)
+                        .map(structure => structure.id);
+                }
+                this._containers = this.memory.containerIds.map(id => Game.getObjectById(id));
+                this._containers = this._containers.filter(container => container);
+                if (!this._containers) delete this.memory.containerIds;
+            }
+            return this._containers;
         },
         enumerable: false,
         configurable: true
@@ -370,9 +314,6 @@ var roomManager = {
             // 展示房间信息
             showRoomInfo(room);
         }
-
-        // 处理远程房间工作
-        processRemoteWork();
     }
 };
 

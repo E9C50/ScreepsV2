@@ -1,3 +1,5 @@
+const { filter } = require("lodash");
+
 function findEnemy(tower) {
     var enemy = tower.pos.findClosestByRange(FIND_HOSTILE_CREEPS, {
         filter: creep => creep.body.some(part => part.type === HEAL)
@@ -28,7 +30,7 @@ function findStructureToRepair(tower) {
         return structure.hits < min.hits ? structure : min;
     }, null);
 
-    if (!structureToRepair) {
+    if (!structureToRepair && tower.room.memory.enableTowerRepairWall) {
         structureToRepair = tower.room.find(FIND_STRUCTURES, {
             filter: structure => structure.hits < structure.hitsMax
         }).reduce((min, structure) => {
@@ -56,6 +58,13 @@ var towerManager = {
             var enemy = findEnemy(tower);
             if (enemy) {
                 tower.attack(enemy);
+                continue;
+            }
+
+            // 检测需要治疗的单位
+            var needHealCreep = tower.pos.findClosestByRange(FIND_MY_CREEPS, { filter: creep => creep.hits < creep.hitsMax });
+            if (needHealCreep) {
+                tower.heal(needHealCreep);
                 continue;
             }
 
