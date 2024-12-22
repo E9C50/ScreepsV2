@@ -1,3 +1,4 @@
+const roleWar = require('role.war');
 const roleBase = require('role.base');
 const roleAdvanced = require('role.advanced');
 
@@ -12,6 +13,7 @@ function creepsWork(creep) {
     }
 
     const role = creep.memory.role;
+    if (roleWar[role]) roleWar[role].work(creep);
     if (roleBase[role]) roleBase[role].work(creep);
     if (roleAdvanced[role]) roleAdvanced[role].work(creep);
 }
@@ -27,8 +29,8 @@ function creepsWork(creep) {
 function addCreepConfig(roomName, role, roleName, sourceId, sourceIndex) {
     const room = Game.rooms[roomName];
     var configName = roomName + '_' + roleName;
-    if (sourceId) configName += ('_' + sourceId);
-    if (sourceIndex) configName += ('_' + sourceIndex);
+    if (sourceId != null) configName += ('_' + sourceId);
+    if (sourceIndex != null) configName += ('_' + sourceIndex);
 
     if ((roleBase[role] && (typeof roleBase[role].isNeed != 'function' || roleBase[role].isNeed(room)))
         || (roleAdvanced[role] && (typeof roleAdvanced[role].isNeed != 'function' || roleAdvanced[role].isNeed(room)))) {
@@ -60,7 +62,7 @@ function spawnCreep(room, spawnObj, role) {
 function releaseCreepConfig() {
     for (roomName in Game.rooms) {
         const room = Game.rooms[roomName];
-        if (!room.controller.my) continue;
+        if (!room.controller || !room.controller.my) continue;
 
         // 初始化配置列表
         if (!Memory.creepConfig) Memory.creepConfig = {};
@@ -82,29 +84,43 @@ function releaseCreepConfig() {
         // 如果有矿机，则发布一个元素矿矿工
         if (room.extractor) addCreepConfig(room.name, 'miner', 'Miner', room.mineral.id);
 
-        // 如果有Storage，发布一个专属Filler
         var storage = room.storage;
-        if (storage) addCreepConfig(room.name, 'filler', 'FillerStorage', storage.id);
-
-        // 如果有Storage，则每100000资源发布一个对应的Upgrader、Builder、Repairer
         if (storage) {
-            var workCount = parseInt(storage.store[RESOURCE_ENERGY] / 100000) + 1;
+            var workCount = parseInt(storage.store[RESOURCE_ENERGY] / 20000) + 1;
             if (room.controller.level == 8) workCount = 1;
 
+            // 如果有Storage，发布一个专属Filler
+            var extensionCount = room.extensions.length;
+            addCreepConfig(room.name, 'filler', 'FillerStorage', storage.id, 0);
+            if (extensionCount > 20) {
+                addCreepConfig(room.name, 'filler', 'FillerStorage', storage.id, 1);
+            }
+
+            // 发布一个专属Repairer
+            addCreepConfig(room.name, 'repairer', 'RepairerStorage', storage.id);
+
+            // 如果有Storage，则每100000资源发布一个对应的Upgrader、Builder、Repairer
             for (i = 0; i < workCount; i++) {
                 addCreepConfig(room.name, 'upgrader', 'UpgraderStorage', storage.id, i);
                 addCreepConfig(room.name, 'builder', 'BuilderStorage', storage.id, i);
-                addCreepConfig(room.name, 'repairer', 'RepairerStorage', storage.id, i);
             }
         }
 
-        // 初期 Container，每个 Container 发布 Builder*1，Filler*1，Upgrader*1，repairer*1
-        room.find(FIND_STRUCTURES, { filter: structure => structure.structureType == STRUCTURE_CONTAINER })
+        // 如果有 Container，根据容量发布对应的Creeps
+        room.structures.filter(structure => structure.structureType == STRUCTURE_CONTAINER)
             .forEach(structure => {
                 addCreepConfig(room.name, 'filler', 'FillerContainer', structure.id);
-                addCreepConfig(room.name, 'upgrader', 'UpgraderContainer', structure.id);
-                addCreepConfig(room.name, 'builder', 'BuilderContainer', structure.id);
-                addCreepConfig(room.name, 'repairer', 'RepairerContainer', structure.id);
+                if (structure.store[RESOURCE_ENERGY] > 1000 && room.energyAvailable < room.energyCapacityAvailable) {
+                    addCreepConfig(room.name, 'filler', 'FillerContainer', structure.id, 1);
+                }
+
+                if (structure.store[RESOURCE_ENERGY] > 1000 && !room.storage) {
+                    for (i = 1; i < (structure.store[RESOURCE_ENERGY] / 300) + 1; i++) {
+                        addCreepConfig(room.name, 'upgrader', 'UpgraderContainer', structure.id, i);
+                        addCreepConfig(room.name, 'builder', 'BuilderContainer', structure.id, i);
+                        addCreepConfig(room.name, 'repairer', 'RepairerContainer', structure.id, i);
+                    }
+                }
             });
     }
 }
@@ -115,7 +131,7 @@ function releaseCreepConfig() {
 function autoSpawnCreeps() {
     for (roomName in Game.rooms) {
         const room = Game.rooms[roomName];
-        if (!room.controller.my) continue;
+        if (!room.controller || !room.controller.my) continue;
 
         const harvester = _.filter(Game.creeps, (creep) => creep.memory.room == room.name && creep.memory.role == 'harvester');
         const fillers = _.filter(Game.creeps, (creep) => creep.memory.room == room.name && creep.memory.role == 'filler');
@@ -142,6 +158,7 @@ function autoSpawnCreeps() {
         if (spawnCreep(room, roleAdvanced.claimer, 'claimer')) continue;
         if (spawnCreep(room, roleAdvanced.reserver, 'reserver')) continue;
         if (spawnCreep(room, roleAdvanced.rHarvester, 'rHarvester')) continue;
+        if (spawnCreep(room, roleAdvanced.rFiller, 'rFiller')) continue;
     }
 }
 
@@ -154,13 +171,17 @@ function releaseRemoteCreepConfig() {
     for (claiming in Memory.jobs.claiming) {
         const targetRoom = claiming;
         const sourceRoom = Memory.jobs.claiming[targetRoom]
-        const creepName = 'Claimer_' + sourceRoom + '_' + targetRoom;
-
-        Memory.creepConfig[sourceRoom][creepName] = {
-            'room': sourceRoom,
+        const memory = {
             'role': 'claimer',
+            'room': sourceRoom,
             'targetRoom': targetRoom
         }
+        const creepName0 = 'Claimer_' + sourceRoom + '_' + targetRoom + '_0';
+        const creepName1 = 'Claimer_' + sourceRoom + '_' + targetRoom + '_1';
+        const creepName2 = 'Claimer_' + sourceRoom + '_' + targetRoom + '_2';
+        Memory.creepConfig[sourceRoom][creepName0] = memory;
+        Memory.creepConfig[sourceRoom][creepName1] = memory;
+        Memory.creepConfig[sourceRoom][creepName2] = memory;
     }
 
     for (reserving in Memory.jobs.reserving) {
@@ -175,21 +196,41 @@ function releaseRemoteCreepConfig() {
         }
     }
 
-    for (remoteHarvest in Memory.jobs.remoteHarvest) {
-        const sourceId = remoteHarvest;
-        const sourceRoom = Memory.jobs.remoteHarvest[sourceId];
+    for (sourceRoom in Memory.jobs.remoteHarvest) {
+        for (sourceId in Memory.jobs.remoteHarvest[sourceRoom]) {
+            const targetRoom = Memory.jobs.remoteHarvest[sourceRoom][sourceId];
 
-        const memory = {
-            'room': sourceRoom,
-            'role': 'rHarvester',
-            'sourceTarget': sourceId,
+            const memory = {
+                'room': sourceRoom,
+                'role': 'rHarvester',
+                'sourceTarget': sourceId,
+                'targetRoom': targetRoom,
+            }
+
+            const creepName1 = 'RemoteHarvester_' + sourceRoom + '_' + sourceId + '_1';
+            const creepName2 = 'RemoteHarvester_' + sourceRoom + '_' + sourceId + '_2';
+
+            Memory.creepConfig[sourceRoom][creepName1] = memory;
+            Memory.creepConfig[sourceRoom][creepName2] = memory;
         }
+    }
 
-        const creepName1 = 'RemoteHarvester_' + sourceRoom + '_' + sourceId + '_1';
-        const creepName2 = 'RemoteHarvester_' + sourceRoom + '_' + sourceId + '_2';
+    for (sourceRoom in Memory.jobs.remoteFiller) {
+        for (targetRoomName in Memory.jobs.remoteFiller[sourceRoom]) {
+            const targetRoom = Memory.jobs.remoteFiller[sourceRoom][targetRoomName];
 
-        Memory.creepConfig[sourceRoom][creepName1] = memory;
-        Memory.creepConfig[sourceRoom][creepName2] = memory;
+            const memory = {
+                'role': 'rFiller',
+                'room': sourceRoom,
+                'targetRoom': targetRoom,
+            }
+
+            const creepName1 = sourceRoom + '_RemoteFiller_' + targetRoom + '_1';
+            const creepName2 = sourceRoom + '_RemoteFiller_' + targetRoom + '_2';
+
+            Memory.creepConfig[sourceRoom][creepName1] = memory;
+            Memory.creepConfig[sourceRoom][creepName2] = memory;
+        }
     }
 }
 
@@ -197,11 +238,16 @@ function releaseRemoteCreepConfig() {
  * 发布远程房间Creep需求
  */
 function showCount() {
+    const initDict = {
+        'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0,
+        'miner': 0, 'reserver': 0, 'rHarvester': 0, 'rFiller': 0
+    };
+
     for (roomName in Game.rooms) {
         const room = Game.rooms[roomName];
-        if (!room.controller.my) continue;
+        if (!room.controller || !room.controller.my) continue;
         //  统计当前数量
-        let roleCounts = { 'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0, 'miner': 0, 'reserver': 0, 'rHarvester': 0 };
+        let roleCounts = { ...initDict };
         for (let creepName in Game.creeps) {
             let creep = Game.creeps[creepName];
             let role = creep.memory.role;
@@ -216,7 +262,7 @@ function showCount() {
         }
 
         //  统计最大数量
-        let roleMaxCounts = { 'harvester': 0, 'filler': 0, 'manager': 0, 'builder': 0, 'repairer': 0, 'upgrader': 0, 'miner': 0, 'reserver': 0, 'rHarvester': 0 };
+        let roleMaxCounts = { ...initDict };
         for (let creepName in Memory.creepConfig[room.name]) {
             let creep = Memory.creepConfig[room.name][creepName];
             let role = creep.role;
@@ -231,16 +277,21 @@ function showCount() {
 
         // 去除一些不需要统计的角色
         delete roleCounts['claimer'];
+        delete roleCounts['dismantler'];
 
         // 显示统计信息
-        const roomCenter = room.controller.pos;
-        if (roomCenter) {
-            var index = roomCenter.y - 4;
+        if (Game.flags.infoPos && Game.flags.infoPos.pos.roomName == roomName) {
+            room.memory.infoPos = Game.flags.infoPos.pos;
+            Game.flags.infoPos.remove();
+        }
+        const infoPos = room.memory.infoPos || room.controller.pos;
+        if (infoPos) {
+            var index = infoPos.y - 4;
             for (role in roleCounts) {
                 const checkText = (roleCounts[role] == roleMaxCounts[role]) ? ' ✅' : (roleCounts[role] > roleMaxCounts[role]) ? ' ⏳' : ' ❌';
                 const countText = roleCounts[role] + '/' + roleMaxCounts[role] + checkText;
-                room.visual.text(role, roomCenter.x + 2, index, { align: 'left' });
-                room.visual.text(countText, roomCenter.x + 7, index, { align: 'center' });
+                room.visual.text(role, infoPos.x + 2, index, { align: 'left' });
+                room.visual.text(countText, infoPos.x + 7, index, { align: 'center' });
                 index++;
             }
         }

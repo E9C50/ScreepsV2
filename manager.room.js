@@ -1,5 +1,4 @@
 const settings = require("base.settings");
-const roleAdvanced = require('role.advanced');
 const roomUtils = require("utils.room");
 
 /**
@@ -7,9 +6,7 @@ const roomUtils = require("utils.room");
  * @param {*} room 
  */
 function safeModeChecker(room) {
-    const structures = room.find(FIND_STRUCTURES);
-
-    structures.forEach(structure => {
+    room.structures.forEach(structure => {
         if (structure.hits < structure.hitsMax
             && structure.structureType != STRUCTURE_ROAD
             && structure.structureType != STRUCTURE_WALL
@@ -29,24 +26,33 @@ function safeModeChecker(room) {
  * @param {*} room 
  */
 function checkRoomCenter(room) {
-    if (!room.memory.roomCenter) {
+
+    // manager位置
+    const managerPosFlag = Game.flags.managerPos;
+    if (managerPosFlag && managerPosFlag.pos.roomName == room.name) {
+        room.memory.managerPos = managerPosFlag.pos;
+        managerPosFlag.remove();
+    }
+
+    if (!room.memory.roomCenter && room.memory.autoPlanner) {
         // 自动规划房间中心位置
         let autoRoomCenter = roomUtils.autoComputeCenterPos(room, 13);
 
         // 查找名为RC的旗子，作为手动选取的房间中心位置
-        const flags = room.find(FIND_FLAGS, { filter: flag => flag.name == 'RC' });
+        const flag = Game.flags.RC;
         let flagRoomCenter = null;
-        if (flags && flags[0]) {
-            flagRoomCenter = flags[0].pos;
-            flags[0].remove();
+        if (flag) {
+            room.memory.autoPlanner = true;
+            flagRoomCenter = flag.pos;
+            flag.remove();
         }
 
         if (flagRoomCenter) {
             room.memory.roomCenter = flagRoomCenter;
         }
-        if (room.memory.autoPlanner && autoRoomCenter) {
-            room.memory.roomCenter = autoRoomCenter;
-        }
+        // if (room.memory.autoPlanner && autoRoomCenter) {
+        //     room.memory.roomCenter = autoRoomCenter;
+        // }
     }
 }
 
@@ -58,7 +64,7 @@ function releaseConstructionSite(room) {
     const roomCenter = room.memory.roomCenter;
     if (!roomCenter) return;
 
-    // room.find(FIND_CONSTRUCTION_SITES).forEach(constructionSite => {
+    // room.constructionSites.forEach(constructionSite => {
     //     constructionSite.remove()
     // });
 
@@ -112,9 +118,11 @@ function showRoomInfo(room) {
         }
     });
 
-    // 显示控制器升级进度
-    const controllerPercent = (room.controller.progress / room.controller.progressTotal * 100).toFixed(2);
-    room.visual.text(controllerPercent + ' %' + '', room.controller.pos.x, room.controller.pos.y + 2, { align: 'center' });
+    if (room.controller) {
+        // 显示控制器升级进度
+        const controllerPercent = (room.controller.progress / room.controller.progressTotal * 100).toFixed(2);
+        room.visual.text(controllerPercent + ' %' + '', room.controller.pos.x, room.controller.pos.y + 2, { align: 'center' });
+    }
 
     // 显示部分建筑能量存储信息
     room.find(FIND_STRUCTURES, {
@@ -131,6 +139,32 @@ function showRoomInfo(room) {
 }
 
 function cacheRoomObjects() {
+    Object.defineProperty(Room.prototype, 'constructionSites', {
+        get: function () {
+            if (!this._constructionSites) {
+                if (!this.memory.constructionSiteIds || this.memory.constructionSiteIds.length == 0 || Game.time % 10 == 0) {
+                    this.memory.constructionSiteIds = this.find(FIND_CONSTRUCTION_SITES).map(constructionSite => constructionSite.id);
+                }
+                this._constructionSites = this.memory.constructionSiteIds.map(id => Game.getObjectById(id)).filter(item => item);
+            }
+            return this._constructionSites;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Room.prototype, 'structures', {
+        get: function () {
+            if (!this._structures) {
+                if (!this.memory.structureIds || this.memory.structureIds.length == 0 || Game.time % 10 == 0) {
+                    this.memory.structureIds = this.find(FIND_STRUCTURES).map(structure => structure.id);
+                }
+                this._structures = this.memory.structureIds.map(id => Game.getObjectById(id)).filter(item => item);
+            }
+            return this._structures;
+        },
+        enumerable: false,
+        configurable: true
+    });
     Object.defineProperty(Room.prototype, 'sources', {
         get: function () {
             if (!this._sources) {
@@ -148,7 +182,7 @@ function cacheRoomObjects() {
         get: function () {
             if (!this._spawns) {
                 if (!this.memory.spawnIds || this.memory.spawnIds == '' || Game.time % 10 == 0) {
-                    this.memory.spawnIds = this.find(FIND_STRUCTURES)
+                    this.memory.spawnIds = this.structures
                         .filter(structure => structure.structureType == STRUCTURE_SPAWN)
                         .map(structure => structure.id);
                 }
@@ -165,7 +199,7 @@ function cacheRoomObjects() {
         get: function () {
             if (!this._extensions) {
                 if (!this.memory.extensionsIds || this.memory.extensionsIds.length == 0 || Game.time % 10 == 0) {
-                    this.memory.extensionsIds = this.find(FIND_STRUCTURES)
+                    this.memory.extensionsIds = this.structures
                         .filter(structure => structure.structureType == STRUCTURE_EXTENSION)
                         .map(structure => structure.id);
                 }
@@ -178,11 +212,28 @@ function cacheRoomObjects() {
         enumerable: false,
         configurable: true
     });
+    Object.defineProperty(Room.prototype, 'links', {
+        get: function () {
+            if (!this._links) {
+                if (!this.memory.linksIds || this.memory.linksIds.length == 0 || Game.time % 10 == 0) {
+                    this.memory.linksIds = this.structures
+                        .filter(structure => structure.structureType == STRUCTURE_LINK)
+                        .map(structure => structure.id);
+                }
+                this._links = this.memory.linksIds.map(id => Game.getObjectById(id));
+                this._links = this._links.filter(extension => extension && extension.isActive());
+                if (!this._links) delete this.memory.linksIds;
+            }
+            return this._links;
+        },
+        enumerable: false,
+        configurable: true
+    });
     Object.defineProperty(Room.prototype, 'containers', {
         get: function () {
             if (!this._containers) {
                 if (!this.memory.containerIds || this.memory.containerIds.length == 0 || Game.time % 10 == 0) {
-                    this.memory.containerIds = this.find(FIND_STRUCTURES)
+                    this.memory.containerIds = this.structures
                         .filter(structure => structure.structureType == STRUCTURE_CONTAINER)
                         .map(structure => structure.id);
                 }
@@ -199,9 +250,8 @@ function cacheRoomObjects() {
         get: function () {
             if (!this._storage) {
                 if (!this.memory.storageId || Game.time % 10 == 0) {
-                    const storageList = this.find(FIND_STRUCTURES, {
-                        filter: structure => structure.structureType == STRUCTURE_STORAGE
-                    });
+                    const storageList = this.structures
+                        .filter(structure => structure.structureType == STRUCTURE_STORAGE);
                     this.memory.storageId = storageList.length > 0 ? storageList[0].id : null;
                 }
                 this._storage = Game.getObjectById(this.memory.storageId);
@@ -218,9 +268,8 @@ function cacheRoomObjects() {
         get: function () {
             if (!this._extractor) {
                 if (!this.memory.extractorId || Game.time % 10 == 0) {
-                    const extractorList = this.find(FIND_STRUCTURES, {
-                        filter: structure => structure.structureType == STRUCTURE_EXTRACTOR
-                    });
+                    const extractorList = this.structures
+                        .filter(structure => structure.structureType == STRUCTURE_EXTRACTOR);
                     this.memory.extractorId = extractorList.length > 0 ? extractorList[0].id : null;
                 }
                 this._extractor = Game.getObjectById(this.memory.extractorId);
@@ -300,13 +349,13 @@ var roomManager = {
         for (roomName in Game.rooms) {
             var room = Game.rooms[roomName];
 
-            if (!room.controller.my) continue;
+            // 检查并设定RoomCenter
+            checkRoomCenter(room);
+
+            if (!room.controller || !room.controller.my) continue;
 
             // 检查并开启安全模式
             safeModeChecker(room);
-
-            // 检查并设定RoomCenter
-            checkRoomCenter(room);
 
             // 检查控制器等级，发布建筑工地
             releaseConstructionSite(room);

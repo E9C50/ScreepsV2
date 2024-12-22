@@ -1,5 +1,5 @@
 var settings = {
-    defaultConrtollerSign: 'Hello Screeps!!!',
+    defaultConrtollerSign: '种田萌新，求求别打 (I am a novice and a peaceful player. Please do not attack me!!!)',
     baseLayout: {
         1: {
             [STRUCTURE_ROAD]: [
@@ -75,11 +75,11 @@ var settings = {
             { [WORK]: 2, [CARRY]: 1, [MOVE]: 1 },
             { [WORK]: 4, [CARRY]: 1, [MOVE]: 2 },
             { [WORK]: 6, [CARRY]: 1, [MOVE]: 3 },
-            { [WORK]: 6, [CARRY]: 1, [MOVE]: 3 },
-            { [WORK]: 6, [CARRY]: 1, [MOVE]: 3 },
-            { [WORK]: 6, [CARRY]: 1, [MOVE]: 3 },
-            { [WORK]: 6, [CARRY]: 1, [MOVE]: 3 },
-            { [WORK]: 6, [CARRY]: 1, [MOVE]: 3 },
+            { [WORK]: 7, [CARRY]: 1, [MOVE]: 4 },
+            { [WORK]: 8, [CARRY]: 1, [MOVE]: 5 },
+            { [WORK]: 8, [CARRY]: 1, [MOVE]: 5 },
+            { [WORK]: 8, [CARRY]: 1, [MOVE]: 5 },
+            { [WORK]: 8, [CARRY]: 1, [MOVE]: 5 },
         ],
         worker: [
             { [WORK]: 1, [CARRY]: 1, [MOVE]: 1 },
@@ -140,7 +140,7 @@ var settings = {
             { [WORK]: 6, [CARRY]: 10, [MOVE]: 8 },
             { [WORK]: 7, [CARRY]: 15, [MOVE]: 11 },
             { [WORK]: 11, [CARRY]: 15, [MOVE]: 19 }
-        ]
+        ],
     }
 }
 

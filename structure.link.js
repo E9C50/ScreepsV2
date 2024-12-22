@@ -2,14 +2,10 @@ var linkManager = {
     run: function () {
         for (roomName in Game.rooms) {
             const room = Game.rooms[roomName]
-            if (!room.controller.my) continue;
+            if (!room.controller || !room.controller.my) continue;
 
-            const links = room.find(FIND_STRUCTURES, {
-                filter: structure => structure.structureType === STRUCTURE_LINK
-            });
-
-            const centerLink = links.filter(link => link.pos.inRangeTo(room.storage, 3))[0];
-            const controllerLink = links.filter(link => link.pos.inRangeTo(room.controller, 3))[0];
+            const centerLink = room.links.filter(link => link.pos.inRangeTo(room.storage, 3))[0];
+            const controllerLink = room.links.filter(link => link.pos.inRangeTo(room.controller, 3))[0];
 
             if (centerLink) {
                 room.memory.centerLink = centerLink.id;
@@ -31,8 +27,8 @@ var linkManager = {
             }
 
             room.memory.sideLinks = [];
-            for (linkIndex in links) {
-                var link = links[linkIndex];
+            for (linkIndex in room.links) {
+                var link = room.links[linkIndex];
                 for (sourceIndex in room.sources) {
                     if (link.pos.inRangeTo(room.sources[sourceIndex].pos, 3) && link.cooldown == 0) {
                         link.transferEnergy(centerLink);

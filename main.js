@@ -6,6 +6,8 @@ const linkManager = require('structure.link');
 const baseConsole = require('base.console');
 
 const profiler = require('utils.profiler');
+const exportStats = require('utils.stats');
+const autoPlanner = require('utils.autoPlanner');
 
 require('utils.move');
 profiler.enable();
@@ -31,5 +33,11 @@ module.exports.loop = function () {
 
         // 绑定控制台命令
         baseConsole.run();
+
+        // 自动规划
+        autoPlanner();
+
+        // 数据统计
+        exportStats();
     });
 }

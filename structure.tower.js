@@ -1,17 +1,15 @@
-const { filter } = require("lodash");
-
 function findEnemy(tower) {
     var enemy = tower.pos.findClosestByRange(FIND_HOSTILE_CREEPS, {
-        filter: creep => creep.body.some(part => part.type === HEAL)
+        filter: creep => creep.body.some(part => part.type === RANGED_ATTACK)
     });
     if (!enemy) {
         enemy = tower.pos.findClosestByRange(FIND_HOSTILE_CREEPS, {
-            filter: creep => creep.body.some(part => part.type === RANGED_ATTACK)
+            filter: creep => creep.body.some(part => part.type === ATTACK)
         });
     }
     if (!enemy) {
         enemy = tower.pos.findClosestByRange(FIND_HOSTILE_CREEPS, {
-            filter: creep => creep.body.some(part => part.type === ATTACK)
+            filter: creep => creep.body.some(part => part.type === HEAL)
         });
     }
     if (!enemy) {
@@ -21,19 +19,19 @@ function findEnemy(tower) {
 }
 
 function findStructureToRepair(tower) {
-    var structureToRepair = tower.room.find(FIND_STRUCTURES, {
-        filter: structure => structure.hits < structure.hitsMax
+    var structureToRepair = tower.room.structures.filter(
+        structure => structure.hits < structure.hitsMax
             && structure.structureType !== STRUCTURE_WALL
             && structure.structureType !== STRUCTURE_RAMPART
-    }).reduce((min, structure) => {
+    ).reduce((min, structure) => {
         if (min == null) { return structure }
         return structure.hits < min.hits ? structure : min;
     }, null);
 
     if (!structureToRepair && tower.room.memory.enableTowerRepairWall) {
-        structureToRepair = tower.room.find(FIND_STRUCTURES, {
-            filter: structure => structure.hits < structure.hitsMax
-        }).reduce((min, structure) => {
+        structureToRepair = tower.room.structures.filter(
+            structure => structure.hits < structure.hitsMax
+        ).reduce((min, structure) => {
             if (min == null) { return structure }
             return structure.hits < min.hits ? structure : min;
         }, null);
@@ -46,9 +44,8 @@ var towerManager = {
         // 获取所有房间中的Tower
         const allRooms = Object.values(Game.rooms);
         const towers = allRooms.filter(room => room.controller && room.controller.my)
-            .map(room => room.find(FIND_STRUCTURES, {
-                filter: structure => structure.structureType === STRUCTURE_TOWER
-            })).reduce((acc, towers) => acc.concat(towers), []);
+            .map(room => room.structures.filter(structure => structure.structureType === STRUCTURE_TOWER))
+            .reduce((acc, towers) => acc.concat(towers), []);
 
         for (var index in towers) {
             var tower = towers[index];
