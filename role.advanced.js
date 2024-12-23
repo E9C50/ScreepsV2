@@ -1,7 +1,6 @@
 const creepsUtils = require("utils.creeps");
 const roleBase = require("role.base");
 const settings = require("base.settings");
-const { filter } = require("lodash");
 
 var roleAdvanced = {
     rHarvester: {
@@ -223,7 +222,6 @@ var roleAdvanced = {
             const bodyConfigs = settings.bodyConfigs.manager;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, true);
             creepMemory.working = false;
-            creepMemory.dontPullMe = true;
             creepMemory.room = room.name;
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
@@ -231,6 +229,7 @@ var roleAdvanced = {
             return room.memory.centerLink != null;
         },
         work: function (creep) {
+            creep.memory.dontPullMe = true;
             const centerLink = creep.pos.findClosestByRange(FIND_STRUCTURES, {
                 filter: structure => structure.id == creep.room.memory.centerLink
             });

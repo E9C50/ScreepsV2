@@ -61,12 +61,12 @@ function checkRoomCenter(room) {
  * @param {*} room 
  */
 function releaseConstructionSite(room) {
-    const roomCenter = room.memory.roomCenter;
-    if (!roomCenter) return;
-
     // room.constructionSites.forEach(constructionSite => {
     //     constructionSite.remove()
     // });
+
+    const roomCenter = room.memory.roomCenter;
+    if (!roomCenter) return;
 
     for (level in settings.baseLayout) {
         if (room.controller.level < level) {
@@ -260,6 +260,24 @@ function cacheRoomObjects() {
                 }
             }
             return this._storage;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Room.prototype, 'nuker', {
+        get: function () {
+            if (!this._nuker) {
+                if (!this.memory.nukerId || Game.time % 10 == 0) {
+                    const nukerList = this.structures
+                        .filter(structure => structure.structureType == STRUCTURE_NUKER);
+                    this.memory.nukerId = nukerList.length > 0 ? nukerList[0].id : null;
+                }
+                this._nuker = Game.getObjectById(this.memory.nukerId);
+                if (this._nuker && !this._nuker.isActive()) {
+                    this._nuker = null;
+                }
+            }
+            return this._nuker;
         },
         enumerable: false,
         configurable: true

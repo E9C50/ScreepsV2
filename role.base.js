@@ -194,6 +194,11 @@ var roleBase = {
                 });
             }
 
+            if (!structures && creep.room.nuker
+                && creep.room.nuker.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+                structures = creep.room.nuker;
+            }
+
             // 转移资源
             if (structures) {
                 if (creep.transfer(structures, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
@@ -201,9 +206,7 @@ var roleBase = {
                 }
             } else {
                 creep.say('❓');
-                structures = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                    filter: (structure) => structure.structureType == STRUCTURE_EXTENSION
-                });
+                structures = creep.room.storage || creep.room.spawn[0];
                 if (structures) {
                     creep.moveTo(structures);
                 }
@@ -362,7 +365,8 @@ var roleBase = {
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         isNeed: function (room) {
-            return room.structures.filter(structure => structure.hits / structure.hitsMax < 0.5).length > 0
+            return room.store && room.store[RESOURCE_ENERGY] > 50000
+                && room.structures.filter(structure => structure.hits / structure.hitsMax < 0.5).length > 0
         },
         work: function (creep) {
             // 调整工作模式

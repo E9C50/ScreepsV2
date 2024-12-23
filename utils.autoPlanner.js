@@ -151,13 +151,13 @@ helpervisual = {
                         if (val == "road" && ((e[0] >= x && e[1] >= y) || (e[0] > x && e[1] < y))) visual.line(x, y, e[0], e[1], { color: structuresColor[struct] })
                     }, e[0], e[1]);
                     visual.text(structuresShape[struct], e[0], e[1] + 0.25, { color: structuresColor[struct], opacity: 0.75, fontSize: 7 })
-                    // Game.rooms[roomName].createConstructionSite(e[0], e[1], struct);
+                    Game.rooms[roomName].createConstructionSite(e[0], e[1], struct);
                 })
             } else {
                 structMap[struct].forEach(e => {
                     if (struct == STRUCTURE_RAMPART || struct == STRUCTURE_CONTAINER || struct == STRUCTURE_LINK) return;
                     visual.text(structuresShape[struct], e[0], e[1] + 0.25, { color: structuresColor[struct], opacity: 0.75, fontSize: 7 })
-                    // Game.rooms[roomName].createConstructionSite(e[0], e[1], struct);
+                    Game.rooms[roomName].createConstructionSite(e[0], e[1], struct);
                 })
             }
         })

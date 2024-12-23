@@ -30,14 +30,14 @@ var linkManager = {
             for (linkIndex in room.links) {
                 var link = room.links[linkIndex];
                 for (sourceIndex in room.sources) {
-                    if (link.pos.inRangeTo(room.sources[sourceIndex].pos, 3) && link.cooldown == 0) {
+                    if (link.pos.inRangeTo(room.sources[sourceIndex].pos, 3) && link.store.getFreeCapacity() < 10) {
                         link.transferEnergy(centerLink);
                     }
                 }
 
                 if (link.pos.x >= 47 || link.pos.x <= 2 || link.pos.y >= 47 || link.pos.y <= 2) {
                     room.memory.sideLinks.push(link.id);
-                    if (link.cooldown == 0) {
+                    if (link.store.getFreeCapacity() < 10) {
                         link.transferEnergy(centerLink);
                     }
                 }

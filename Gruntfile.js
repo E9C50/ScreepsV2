@@ -8,11 +8,11 @@ module.exports = function (grunt) {
         // 官方服务器
         screeps: {
             options: {
-                // server: {
-                //     host: '10.1.1.50',
-                //     port: 21025,
-                //     http: true
-                // },
+                server: {
+                    host: '10.1.1.50',
+                    port: 21025,
+                    http: true
+                },
                 email: config.email,
                 password: config.password,
                 branch: config.branch,

@@ -156,9 +156,9 @@ function autoSpawnCreeps() {
         if (spawnCreep(room, roleAdvanced.miner, 'miner')) continue;
 
         if (spawnCreep(room, roleAdvanced.claimer, 'claimer')) continue;
+        if (spawnCreep(room, roleAdvanced.rFiller, 'rFiller')) continue;
         if (spawnCreep(room, roleAdvanced.reserver, 'reserver')) continue;
         if (spawnCreep(room, roleAdvanced.rHarvester, 'rHarvester')) continue;
-        if (spawnCreep(room, roleAdvanced.rFiller, 'rFiller')) continue;
     }
 }
 
