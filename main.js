@@ -9,6 +9,7 @@ const profiler = require('utils.profiler');
 const exportStats = require('utils.stats');
 const autoPlanner = require('utils.autoPlanner');
 
+require('utils.resource');
 require('utils.move');
 profiler.enable();
 

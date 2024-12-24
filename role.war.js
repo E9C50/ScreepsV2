@@ -4,16 +4,10 @@ const settings = require("base.settings");
 var roleWar = {
     npcHouseKeeper: {
         spawn: function (room, creepName, creepMemory) {
-            const spawn = room.spawns[0];
-            // const bodyConfigs = settings.bodyConfigs.rHarvester;
-            // const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
-            const bodyPart = [
-                TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH,
-                RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, MOVE, MOVE, MOVE, MOVE,
-                MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL,
-                HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL
-            ];
-            if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
+            const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
+            const bodyConfigs = settings.bodyConfigs.oneWar;
+            const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
+            if (spawn) console.log(spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory }))
         },
         work: function (creep) {
             const targetFlag = Game.flags['TARGET_TEST'];
@@ -35,7 +29,7 @@ var roleWar = {
     },
     dismantler: {
         spawn: function (room, creepName, creepMemory) {
-            const spawn = room.spawns[0];
+            const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             const bodyConfigs = settings.bodyConfigs.worker;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             creepMemory.room = room.name;

@@ -14,8 +14,8 @@ function safeModeChecker(room) {
             && structure.structureType != STRUCTURE_CONTAINER
         ) {
             if (room.controller && !room.controller.safeMode) {
+                console.log('notify_您的房间[' + room.name + ']受到破坏，立即激活安全模式！！！');
                 // room.controller.activateSafeMode();
-                console.log(room.name + ' 建筑受到破坏，立即激活安全模式！！！');
             }
         }
     });

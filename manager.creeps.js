@@ -86,7 +86,7 @@ function releaseCreepConfig() {
 
         var storage = room.storage;
         if (storage) {
-            var workCount = parseInt(storage.store[RESOURCE_ENERGY] / 20000) + 1;
+            var workCount = parseInt(storage.store[RESOURCE_ENERGY] / 10000) + 1;
             if (room.controller.level == 8) workCount = 1;
 
             // 如果有Storage，发布一个专属Filler

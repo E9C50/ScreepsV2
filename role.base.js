@@ -5,7 +5,7 @@ const settings = require("base.settings");
 var roleBase = {
     harvester: {
         spawn: function (room, creepName, creepMemory) {
-            const spawn = room.spawns[0];
+            const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             const harvesters = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'harvester');
             const bodyConfigs = settings.bodyConfigs.harvester;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, harvesters.length == 0);
@@ -92,7 +92,7 @@ var roleBase = {
     },
     filler: {
         spawn: function (room, creepName, creepMemory) {
-            const spawn = room.spawns[0];
+            const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             const bodyConfigs = settings.bodyConfigs.filler;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, true);
             creepMemory.working = false;
@@ -206,7 +206,7 @@ var roleBase = {
                 }
             } else {
                 creep.say('❓');
-                structures = creep.room.storage || creep.room.spawn[0];
+                structures = creep.room.storage || (creep.room.spawn && creep.room.spawn[0]);
                 if (structures) {
                     creep.moveTo(structures);
                 }
@@ -215,7 +215,7 @@ var roleBase = {
     },
     builder: {
         spawn: function (room, creepName, creepMemory) {
-            const spawn = room.spawns[0];
+            const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             const bodyConfigs = settings.bodyConfigs.worker;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             creepMemory.working = false;
@@ -295,7 +295,7 @@ var roleBase = {
     },
     upgrader: {
         spawn: function (room, creepName, creepMemory) {
-            const spawn = room.spawns[0];
+            const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             const bodyConfigs = settings.bodyConfigs.worker;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             creepMemory.working = false;
@@ -357,7 +357,7 @@ var roleBase = {
     },
     repairer: {
         spawn: function (room, creepName, creepMemory) {
-            const spawn = room.spawns[0];
+            const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             const bodyConfigs = settings.bodyConfigs.worker;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             creepMemory.working = false;
@@ -365,7 +365,7 @@ var roleBase = {
             if (spawn) spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory });
         },
         isNeed: function (room) {
-            return room.store && room.store[RESOURCE_ENERGY] > 50000
+            return room.storage && room.storage.store[RESOURCE_ENERGY] > 50000
                 && room.structures.filter(structure => structure.hits / structure.hitsMax < 0.5).length > 0
         },
         work: function (creep) {

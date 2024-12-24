@@ -29,15 +29,21 @@ var linkManager = {
             room.memory.sideLinks = [];
             for (linkIndex in room.links) {
                 var link = room.links[linkIndex];
-                for (sourceIndex in room.sources) {
-                    if (link.pos.inRangeTo(room.sources[sourceIndex].pos, 3) && link.store.getFreeCapacity() < 10) {
-                        link.transferEnergy(centerLink);
-                    }
-                }
+                // for (sourceIndex in room.sources) {
+                //     if (link.pos.inRangeTo(room.sources[sourceIndex].pos, 3) && link.store.getFreeCapacity(RESOURCE_ENERGY) < 10) {
+                //         link.transferEnergy(centerLink);
+                //     }
+                // }
 
-                if (link.pos.x >= 47 || link.pos.x <= 2 || link.pos.y >= 47 || link.pos.y <= 2) {
-                    room.memory.sideLinks.push(link.id);
-                    if (link.store.getFreeCapacity() < 10) {
+                // if (link.pos.x >= 47 || link.pos.x <= 2 || link.pos.y >= 47 || link.pos.y <= 2) {
+                //     room.memory.sideLinks.push(link.id);
+                //     if (link.store.getFreeCapacity(RESOURCE_ENERGY) < 10) {
+                //         link.transferEnergy(centerLink);
+                //     }
+                // }
+
+                if ((centerLink && link.id != centerLink.id) && (controllerLink && link.id != controllerLink.id)) {
+                    if (link.store.getFreeCapacity(RESOURCE_ENERGY) < 10) {
                         link.transferEnergy(centerLink);
                     }
                 }

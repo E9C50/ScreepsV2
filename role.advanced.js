@@ -5,7 +5,7 @@ const settings = require("base.settings");
 var roleAdvanced = {
     rHarvester: {
         spawn: function (room, creepName, creepMemory) {
-            const spawn = room.spawns[0];
+            const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             const harvesters = _.filter(Game.creeps, (creep) => creep.room.name == room.name && creep.memory.role == 'harvester');
             const bodyConfigs = settings.bodyConfigs.rHarvester;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, harvesters.length == 0);
@@ -65,10 +65,8 @@ var roleAdvanced = {
                 return;
             }
 
-            var targets = [creep.room.storage]
-            if (creep.room.memory.sideLinks) {
-                targets = targets.concat(creep.room.memory.sideLinks.map(sideLinkId => Game.getObjectById(sideLinkId)));
-            }
+            var targets = [creep.room.storage].concat(creep.room.links);
+            targets = targets.filter(target => target.store.getFreeCapacity(RESOURCE_ENERGY) > 0);
             const target = targets.sort((a, b) => a.pos.getRangeTo(creep) - b.pos.getRangeTo(creep))[0];
             if (creep.transfer(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
                 creep.moveTo(target);
@@ -77,7 +75,7 @@ var roleAdvanced = {
     },
     rFiller: {
         spawn: function (room, creepName, creepMemory) {
-            const spawn = room.spawns[0];
+            const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             const bodyConfigs = settings.bodyConfigs.filler;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             creepMemory.room = room.name;
@@ -164,7 +162,7 @@ var roleAdvanced = {
                     filter: structure => (structure.structureType == STRUCTURE_CONTAINER
                         || structure.structureType == STRUCTURE_STORAGE || structure.structureType == STRUCTURE_SPAWN
                         || structure.structureType == STRUCTURE_EXTENSION || structure.structureType == STRUCTURE_TOWER
-                        || structure.structureType == STRUCTURE_LINK) && structure.store.getFreeCapacity() > 0
+                        || structure.structureType == STRUCTURE_LINK) && structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0
                 });
                 if (creep.transfer(dropTarget, Object.keys(creep.store)[0]) == ERR_NOT_IN_RANGE) {
                     creep.moveTo(dropTarget);
@@ -175,7 +173,7 @@ var roleAdvanced = {
     },
     miner: {
         spawn: function (room, creepName, creepMemory) {
-            const spawn = room.spawns[0];
+            const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             const bodyConfigs = settings.bodyConfigs.rHarvester;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             creepMemory.working = false;
@@ -218,7 +216,7 @@ var roleAdvanced = {
     },
     manager: {
         spawn: function (room, creepName, creepMemory) {
-            const spawn = room.spawns[0];
+            const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             const bodyConfigs = settings.bodyConfigs.manager;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, true);
             creepMemory.working = false;
@@ -267,7 +265,7 @@ var roleAdvanced = {
     },
     claimer: {
         spawn: function (room, creepName, creepMemory) {
-            const spawn = room.spawns[0];
+            const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             // const bodyConfigs = settings.bodyConfigs.claimer;
             // const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             const bodyPart = [WORK, WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE];
@@ -368,7 +366,7 @@ var roleAdvanced = {
     },
     reserver: {
         spawn: function (room, creepName, creepMemory) {
-            const spawn = room.spawns[0];
+            const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             const bodyConfigs = settings.bodyConfigs.reserver;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
             // const creepName = 'Reserver_' + room.name + '_' + creepMemory.targetRoom;
