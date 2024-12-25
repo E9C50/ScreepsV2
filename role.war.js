@@ -1,5 +1,6 @@
 const creepsUtils = require("utils.creeps");
 const settings = require("base.settings");
+const { fill, filter } = require("lodash");
 
 var roleWar = {
     npcHouseKeeper: {
@@ -7,15 +8,41 @@ var roleWar = {
             const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             const bodyConfigs = settings.bodyConfigs.oneWar;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
-            if (spawn) console.log(spawn.spawnCreep(bodyPart, creepName, { memory: creepMemory }))
+            
+            if (spawn) console.log(spawn.spawnCreep([MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK], creepName, { memory: creepMemory }))
         },
         work: function (creep) {
             const targetFlag = Game.flags['TARGET_TEST'];
             if (creep.room.name == targetFlag.pos.roomName) {
-                const enemy = creep.pos.findClosestByPath(FIND_CREEPS, { filter: creep => !creep.my });
-                if (enemy && creep.pos.inRangeTo(enemy, 3)) {
-                    creep.rangedAttack(enemy)
-                } else {
+                var enemy = creep.pos.findClosestByRange(FIND_CREEPS, { filter: creep => !creep.my });
+
+                // if (!enemy) {
+                //     enemy = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+                //         filter: structure => !structure.my && structure.structureType == STRUCTURE_TOWER
+                //     });
+                // }
+                // if (!enemy) {
+                //     enemy = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+                //         filter: structure => !structure.my && structure.structureType == STRUCTURE_SPAWN
+                //     });
+                // }
+                // if (!enemy) {
+                //     enemy = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+                //         filter: structure => !structure.my && structure.structureType != STRUCTURE_CONTROLLER
+                //     });
+                // }
+                // if (!enemy) {
+                //     enemy = creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES);
+                // }
+                if (!enemy) {
+                    enemy = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+                        filter: structure => structure.structureType == STRUCTURE_INVADER_CORE
+                    });
+                }
+
+                if (enemy && creep.pos.inRangeTo(enemy, 1)) {
+                    creep.attack(enemy)
+                } else if (enemy) {
                     creep.moveTo(enemy);
                 }
             } else {

@@ -4,8 +4,8 @@ var linkManager = {
             const room = Game.rooms[roomName]
             if (!room.controller || !room.controller.my) continue;
 
-            const centerLink = room.links.filter(link => link.pos.inRangeTo(room.storage, 3))[0];
-            const controllerLink = room.links.filter(link => link.pos.inRangeTo(room.controller, 3))[0];
+            const centerLink = room.links.filter(link => link.pos.inRangeTo(room.storage, 2))[0];
+            const controllerLink = room.links.filter(link => link.pos.inRangeTo(room.controller, 2))[0];
 
             if (centerLink) {
                 room.memory.centerLink = centerLink.id;
@@ -26,23 +26,9 @@ var linkManager = {
                 centerLink.transferEnergy(controllerLink, 200);
             }
 
-            room.memory.sideLinks = [];
             for (linkIndex in room.links) {
                 var link = room.links[linkIndex];
-                // for (sourceIndex in room.sources) {
-                //     if (link.pos.inRangeTo(room.sources[sourceIndex].pos, 3) && link.store.getFreeCapacity(RESOURCE_ENERGY) < 10) {
-                //         link.transferEnergy(centerLink);
-                //     }
-                // }
-
-                // if (link.pos.x >= 47 || link.pos.x <= 2 || link.pos.y >= 47 || link.pos.y <= 2) {
-                //     room.memory.sideLinks.push(link.id);
-                //     if (link.store.getFreeCapacity(RESOURCE_ENERGY) < 10) {
-                //         link.transferEnergy(centerLink);
-                //     }
-                // }
-
-                if ((centerLink && link.id != centerLink.id) && (controllerLink && link.id != controllerLink.id)) {
+                if ((!centerLink || link.id != centerLink.id) && (!controllerLink || link.id != controllerLink.id)) {
                     if (link.store.getFreeCapacity(RESOURCE_ENERGY) < 10) {
                         link.transferEnergy(centerLink);
                     }

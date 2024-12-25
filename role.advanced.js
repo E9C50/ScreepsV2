@@ -391,7 +391,11 @@ var roleAdvanced = {
                 return;
             }
 
-            creep.reserveController(roomController);
+            if (roomController.owner || (roomController.reservation && roomController.reservation.username != creep.owner.username)) {
+                creep.attackController(roomController);
+            } else {
+                creep.reserveController(roomController);
+            }
         }
     },
 };

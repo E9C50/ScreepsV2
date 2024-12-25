@@ -16,5 +16,7 @@ storage.db['rooms.objects'].find({ type: 'constructionSite' }).then(resp => resp
 
 
 ```
+Game.rooms['E35N3'].spawnCreep('NpcHouseKeeper_001', 'npcHouseKeeper')
+
 Game.spawns['Spawn2'].spawnCreep([TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL, HEAL], 'npcHouseKeeper1', { memory: {role: 'dismantler'} });
 ```

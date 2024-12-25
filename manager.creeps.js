@@ -86,7 +86,7 @@ function releaseCreepConfig() {
 
         var storage = room.storage;
         if (storage) {
-            var workCount = parseInt(storage.store[RESOURCE_ENERGY] / 10000) + 1;
+            var workCount = parseInt(storage.store[RESOURCE_ENERGY] / 5000) + 1;
             if (room.controller.level == 8) workCount = 1;
 
             // 如果有Storage，发布一个专属Filler
@@ -291,7 +291,7 @@ function showCount() {
                 const checkText = (roleCounts[role] == roleMaxCounts[role]) ? ' ✅' : (roleCounts[role] > roleMaxCounts[role]) ? ' ⏳' : ' ❌';
                 const countText = roleCounts[role] + '/' + roleMaxCounts[role] + checkText;
                 room.visual.text(role, infoPos.x + 2, index, { align: 'left' });
-                room.visual.text(countText, infoPos.x + 7, index, { align: 'center' });
+                room.visual.text(countText, infoPos.x + 9, index, { align: 'right' });
                 index++;
             }
         }
