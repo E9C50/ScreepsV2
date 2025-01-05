@@ -5,7 +5,7 @@ var linkManager = {
             if (!room.controller || !room.controller.my) continue;
 
             const centerLink = room.links.filter(link => link.pos.inRangeTo(room.storage, 2))[0];
-            const controllerLink = room.links.filter(link => link.pos.inRangeTo(room.controller, 2))[0];
+            const controllerLink = room.links.filter(link => link.pos.inRangeTo(room.controller, 3))[0];
 
             if (centerLink) {
                 room.memory.centerLink = centerLink.id;

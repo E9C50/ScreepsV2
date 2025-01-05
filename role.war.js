@@ -8,8 +8,8 @@ var roleWar = {
             const spawn = room.spawns.filter(spawn => !spawn.spawning)[0];
             const bodyConfigs = settings.bodyConfigs.oneWar;
             const bodyPart = creepsUtils.getBodyConfig(room, bodyConfigs, false);
-            
-            if (spawn) console.log(spawn.spawnCreep([MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK,ATTACK], creepName, { memory: creepMemory }))
+
+            if (spawn) console.log(spawn.spawnCreep([MOVE], creepName, { memory: creepMemory }))
         },
         work: function (creep) {
             const targetFlag = Game.flags['TARGET_TEST'];
@@ -44,6 +44,8 @@ var roleWar = {
                     creep.attack(enemy)
                 } else if (enemy) {
                     creep.moveTo(enemy);
+                } else {
+                    creep.moveTo(Game.flags['TARGET_TEST'].pos);
                 }
             } else {
                 creep.moveTo(Game.flags['TARGET_TEST'].pos);

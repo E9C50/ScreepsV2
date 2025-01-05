@@ -32,7 +32,8 @@ var roomUtils = {
      */
     isFighting: function (room) {
         var enemys = room.find(FIND_HOSTILE_CREEPS);
-        if (enemys.length > 0 && enemys[0].owner.username != 'Invader') {
+        //  && enemys[0].owner.username != 'Invader'
+        if (enemys.length > 0) {
             console.log('notify_检测到您的房间[' + room.name + ']有敌人[' + enemys[0].owner.username + ']正在进攻')
         }
         return enemys != '';

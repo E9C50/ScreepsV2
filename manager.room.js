@@ -264,6 +264,41 @@ function cacheRoomObjects() {
         enumerable: false,
         configurable: true
     });
+    Object.defineProperty(Room.prototype, 'centerLink', {
+        get: function () {
+            if (!this._centerLink) {
+                if (!this.memory.centerLinkId || Game.time % 10 == 0) {
+                    const centerLink = this.links.filter(link => link.pos.inRangeTo(this.storage, 2))[0];
+                    this.memory.centerLinkId = centerLink == undefined ? undefined : centerLink.id;
+                }
+                this._centerLink = Game.getObjectById(this.memory.centerLinkId);
+                if (this._centerLink && !this._centerLink.isActive()) {
+                    this._centerLink = null;
+                }
+            }
+            return this._centerLink;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Room.prototype, 'terminal', {
+        get: function () {
+            if (!this._terminal) {
+                if (!this.memory.terminalId || Game.time % 10 == 0) {
+                    const terminalList = this.structures
+                        .filter(structure => structure.structureType == STRUCTURE_TERMINAL);
+                    this.memory.terminalId = terminalList.length > 0 ? terminalList[0].id : null;
+                }
+                this._terminal = Game.getObjectById(this.memory.terminalId);
+                if (this._terminal && !this._terminal.isActive()) {
+                    this._terminal = null;
+                }
+            }
+            return this._terminal;
+        },
+        enumerable: false,
+        configurable: true
+    });
     Object.defineProperty(Room.prototype, 'nuker', {
         get: function () {
             if (!this._nuker) {
@@ -380,6 +415,13 @@ var roomManager = {
 
             // 展示房间信息
             showRoomInfo(room);
+
+            // 检查storage和terminal的能量存储
+            const storageStore = room.storage ? room.storage.store[RESOURCE_ENERGY] : 0;
+            const terminalStore = room.terminal ? room.terminal.store[RESOURCE_ENERGY] : 0;
+            if (storageStore + terminalStore <= 10000 && Game.time % 100 == 0) {
+                console.log('notify_您的房间[' + room.name + ']能量存储不足10K，请及时补充！！！');
+            }
         }
     }
 };

@@ -82,12 +82,13 @@ function releaseCreepConfig() {
         if (room.memory.centerLink) addCreepConfig(room.name, 'manager', 'Manager');
 
         // 如果有矿机，则发布一个元素矿矿工
-        if (room.extractor) addCreepConfig(room.name, 'miner', 'Miner', room.mineral.id);
+        if (room.extractor && room.mineral.mineralAmount > 0) addCreepConfig(room.name, 'miner', 'Miner', room.mineral.id);
 
         var storage = room.storage;
         if (storage) {
-            var workCount = parseInt(storage.store[RESOURCE_ENERGY] / 5000) + 1;
-            if (room.controller.level == 8) workCount = 1;
+            var upgradeCount = parseInt(storage.store[RESOURCE_ENERGY] / 5000) + 1;
+            if (room.controller.level == 8) upgradeCount = 1;
+            upgradeCount = Math.min(upgradeCount, 15);
 
             // 如果有Storage，发布一个专属Filler
             var extensionCount = room.extensions.length;
@@ -98,11 +99,17 @@ function releaseCreepConfig() {
 
             // 发布一个专属Repairer
             addCreepConfig(room.name, 'repairer', 'RepairerStorage', storage.id);
+            addCreepConfig(room.name, 'repairer', 'RepairerStorage', storage.id, 1);
+            addCreepConfig(room.name, 'repairer', 'RepairerStorage', storage.id, 2);
+            addCreepConfig(room.name, 'repairer', 'RepairerStorage', storage.id, 3);
+
+            // 发布Builder
+            addCreepConfig(room.name, 'builder', 'BuilderStorage', storage.id, 0);
+            addCreepConfig(room.name, 'builder', 'BuilderStorage', storage.id, 1);
 
             // 如果有Storage，则每100000资源发布一个对应的Upgrader、Builder、Repairer
-            for (i = 0; i < workCount; i++) {
+            for (i = 0; i < upgradeCount; i++) {
                 addCreepConfig(room.name, 'upgrader', 'UpgraderStorage', storage.id, i);
-                addCreepConfig(room.name, 'builder', 'BuilderStorage', storage.id, i);
             }
         }
 

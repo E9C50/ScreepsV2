@@ -289,7 +289,7 @@ var roleBase = {
                     creep.moveTo(buildTarget);
                 }
             } else {
-                roleBase.upgrader.work(creep);
+                roleBase.repairer.work(creep);
             }
         }
     },
@@ -344,7 +344,8 @@ var roleBase = {
             }
         },
         target: function (creep) {
-            if (creep.upgradeController(creep.room.controller) == ERR_NOT_IN_RANGE) {
+            const result = creep.upgradeController(creep.room.controller)
+            if (result == ERR_NOT_IN_RANGE) {
                 creep.moveTo(creep.room.controller);
             }
 

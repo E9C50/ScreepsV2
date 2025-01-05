@@ -183,7 +183,7 @@ var roleAdvanced = {
         isNeed: function (room) {
             const mineral = room.mineral;
             const target = room.storage;
-            return target.store[mineral.mineralType] <= 100000
+            return target.store[mineral.mineralType] <= 1000000
         },
         work: function (creep) {
             // 调整工作模式
@@ -228,18 +228,19 @@ var roleAdvanced = {
         },
         work: function (creep) {
             creep.memory.dontPullMe = true;
-            const centerLink = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: structure => structure.id == creep.room.memory.centerLink
-            });
+            const storage = creep.room.storage;
+            const terminal = creep.room.terminal;
+            const centerLink = creep.room.centerLink;
 
+            // 移动到工作位置
             var managerPos = creep.room.memory.managerPos;
             if (managerPos) managerPos = new RoomPosition(managerPos.x, managerPos.y, managerPos.roomName);
             if (managerPos && !creep.pos.isEqualTo(managerPos)) {
                 creep.moveTo(managerPos);
                 return;
             } else {
-                if (!creep.pos.isNearTo(creep.room.storage)) {
-                    creep.moveTo(creep.room.storage);
+                if (!creep.pos.isNearTo(storage)) {
+                    creep.moveTo(storage);
                     return;
                 }
                 if (!creep.pos.isNearTo(centerLink)) {
@@ -248,15 +249,63 @@ var roleAdvanced = {
                 }
             }
 
+            // 终端填充任务
+            if (!Memory.jobs.fillTerminal) Memory.jobs.fillTerminal = {};
+            if (!Memory.jobs.fillTerminal[creep.room.name]) Memory.jobs.fillTerminal[creep.room.name] = [];
+            if (Memory.jobs.fillTerminal[creep.room.name].length > 0) {
+                const fillTerminalJob = Memory.jobs.fillTerminal[creep.room.name][0];
+                const resourceType = fillTerminalJob.type;
+                const carryAmount = creep.store[resourceType];
+
+                if (carryAmount == 0) {
+                    if (resourceType == RESOURCE_ENERGY && centerLink.store[RESOURCE_ENERGY] > 0) {
+                        creep.withdraw(centerLink, resourceType);
+                    } else {
+                        creep.withdraw(storage, resourceType);
+                    }
+                } else {
+                    creep.transfer(terminal, resourceType, carryAmount)
+                    Memory.jobs.fillTerminal[creep.room.name][0].amount -= carryAmount
+
+                    if (Memory.jobs.fillTerminal[creep.room.name][0].amount <= 0) {
+                        Memory.jobs.fillTerminal[creep.room.name].shift()
+                    }
+                }
+                if (centerLink.store[RESOURCE_ENERGY] == 0) return;
+            }
+
+            // 终端提取任务
+            if (!Memory.jobs.takeTerminal) Memory.jobs.takeTerminal = {};
+            if (!Memory.jobs.takeTerminal[creep.room.name]) Memory.jobs.takeTerminal[creep.room.name] = [];
+            if (Memory.jobs.takeTerminal[creep.room.name].length > 0) {
+                const takeTerminalJob = Memory.jobs.takeTerminal[creep.room.name][0];
+                const resourceType = takeTerminalJob.type;
+                const carryAmount = creep.store[resourceType];
+
+                if (carryAmount == 0) {
+                    const takeAmount = Math.min(Memory.jobs.takeTerminal[creep.room.name][0].amount, creep.store.getFreeCapacity())
+                    creep.withdraw(terminal, resourceType, takeAmount);
+                } else {
+                    creep.transfer(storage, resourceType, carryAmount)
+                    Memory.jobs.takeTerminal[creep.room.name][0].amount -= carryAmount
+
+                    if (Memory.jobs.takeTerminal[creep.room.name][0].amount <= 0) {
+                        Memory.jobs.takeTerminal[creep.room.name].shift()
+                    }
+                }
+                if (centerLink.store[RESOURCE_ENERGY] == 0) return;
+            }
+
+            // 能量搬运任务
             if (creep.room.memory.centerLinkSentMode) {
                 if (creep.store[RESOURCE_ENERGY] > 0) {
                     creep.transfer(centerLink, RESOURCE_ENERGY);
                 } else {
-                    creep.withdraw(creep.room.storage, RESOURCE_ENERGY);
+                    creep.withdraw(storage, RESOURCE_ENERGY);
                 }
             } else {
                 if (creep.store[RESOURCE_ENERGY] > 0) {
-                    creep.transfer(creep.room.storage, RESOURCE_ENERGY);
+                    creep.transfer(storage, RESOURCE_ENERGY);
                 } else {
                     creep.withdraw(centerLink, RESOURCE_ENERGY);
                 }

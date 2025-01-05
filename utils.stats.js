@@ -7,6 +7,7 @@ if (!Memory.stats.rooms) Memory.stats.rooms = {};
 // 在主循环的末尾调用此函数
 module.exports = function exportStats() {
     Memory.stats.time = Game.time;
+    Memory.stats.sysTime = new Date().getTime();
 
     // 收集房间状态
     for (let roomName in Game.rooms) {

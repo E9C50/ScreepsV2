@@ -20,9 +20,9 @@ function findEnemy(tower) {
 
 function findStructureToRepair(tower) {
     var structureToRepair = tower.room.structures.filter(
-        structure => structure.hits < structure.hitsMax
-            && structure.structureType !== STRUCTURE_WALL
+        structure => structure.structureType !== STRUCTURE_WALL
             && structure.structureType !== STRUCTURE_RAMPART
+            && structure.hits < structure.hitsMax
     ).reduce((min, structure) => {
         if (min == null) { return structure }
         return structure.hits < min.hits ? structure : min;
@@ -30,7 +30,10 @@ function findStructureToRepair(tower) {
 
     if (!structureToRepair && tower.room.memory.enableTowerRepairWall) {
         structureToRepair = tower.room.structures.filter(
-            structure => structure.hits < structure.hitsMax
+            structure => (structure.structureType == STRUCTURE_WALL
+                || structure.structureType == STRUCTURE_RAMPART)
+                && structure.hits < structure.hitsMax
+                && structure.hits < 6000000
         ).reduce((min, structure) => {
             if (min == null) { return structure }
             return structure.hits < min.hits ? structure : min;
